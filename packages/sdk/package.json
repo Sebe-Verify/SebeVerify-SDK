@@ -14,7 +14,8 @@
   },
   "scripts": {
     "build": "tsup && tsc src/index.ts --declaration --emitDeclarationOnly --outDir dist --skipLibCheck",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "test": "vitest"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
