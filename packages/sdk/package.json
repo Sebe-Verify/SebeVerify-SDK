@@ -1,6 +1,6 @@
 {
   "name": "sebeverify-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SebeVerify SDK - Server-side identity verification library",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
