@@ -21,6 +21,8 @@ interface VerificationFlowProps {
   onComplete?: () => void;
   onClose?: () => void;
   returnUrl?: string;
+  /** When true (desktop UA), show QR + URL on intro so users can open the flow on a phone */
+  showHandoffQr?: boolean;
   qrCodeImageUrl?: string;
   verifyPageUrl?: string;
 }
@@ -29,6 +31,7 @@ function VerificationFlowInner({
   onComplete,
   onClose,
   returnUrl,
+  showHandoffQr,
   qrCodeImageUrl,
   verifyPageUrl,
 }: VerificationFlowProps) {
@@ -47,6 +50,7 @@ function VerificationFlowInner({
       case "intro":
         return (
           <IntroScreen
+            showHandoffQr={showHandoffQr}
             qrCodeImageUrl={qrCodeImageUrl}
             verifyPageUrl={verifyPageUrl}
           />
@@ -74,6 +78,7 @@ function VerificationFlowInner({
       default:
         return (
           <IntroScreen
+            showHandoffQr={showHandoffQr}
             qrCodeImageUrl={qrCodeImageUrl}
             verifyPageUrl={verifyPageUrl}
           />

@@ -3,11 +3,14 @@
 import { useVerificationStore } from "@/lib/verification-store";
 
 interface IntroScreenProps {
+  /** Desktop-only: scan QR to continue on another device */
+  showHandoffQr?: boolean;
   qrCodeImageUrl?: string;
   verifyPageUrl?: string;
 }
 
 export function IntroScreen({
+  showHandoffQr = false,
   qrCodeImageUrl,
   verifyPageUrl,
 }: IntroScreenProps) {
@@ -17,41 +20,56 @@ export function IntroScreen({
     setStep("doc-select");
   };
 
-  // Show QR code if available (generated for this session), otherwise show static image
+  const handoffReady =
+    showHandoffQr && qrCodeImageUrl && verifyPageUrl;
+
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center px-6 pb-6 pt-10 text-center">
-        <div className="relative mb-10 flex justify-center">
-          {qrCodeImageUrl ? (
-            <img
-              src={qrCodeImageUrl}
-              alt="Scan to verify on mobile"
-              className="h-40 w-40 rounded-xl shadow-sm"
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              QR code could not be generated
-            </p>
-          )}
-        </div>
+        {showHandoffQr ? (
+          <>
+            <div className="relative mb-10 flex justify-center">
+              {qrCodeImageUrl ? (
+                <img
+                  src={qrCodeImageUrl}
+                  alt="Scan to verify on mobile"
+                  className="h-40 w-40 rounded-xl shadow-sm"
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  QR code could not be generated
+                </p>
+              )}
+            </div>
 
-        <div
-          className="mb-10 flex items-center justify-center gap-2"
-          role="presentation"
-          aria-label="Step 1 of 2"
-        >
-          <span className="h-2 w-10 rounded-full bg-primary" />
-          <span className="h-2 w-10 rounded-full bg-muted" />
-        </div>
+            <div
+              className="mb-10 flex items-center justify-center gap-2"
+              role="presentation"
+              aria-label="Step 1 of 2"
+            >
+              <span className="h-2 w-10 rounded-full bg-primary" />
+              <span className="h-2 w-10 rounded-full bg-muted" />
+            </div>
 
-        {qrCodeImageUrl && verifyPageUrl && (
-          <div className="mb-6 max-w-xs">
-            <p className="mb-2 text-sm text-muted-foreground">
-              Scan to continue on mobile
-            </p>
-            <p className="break-all text-xs text-muted-foreground">
-              {verifyPageUrl}
-            </p>
+            {handoffReady ? (
+              <div className="mb-6 max-w-xs">
+                <p className="mb-2 text-sm text-muted-foreground">
+                  Scan to continue on mobile
+                </p>
+                <p className="break-all text-xs text-muted-foreground">
+                  {verifyPageUrl}
+                </p>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div
+            className="mb-10 flex items-center justify-center gap-2"
+            role="presentation"
+            aria-label="Step 1 of 2"
+          >
+            <span className="h-2 w-10 rounded-full bg-primary" />
+            <span className="h-2 w-10 rounded-full bg-muted" />
           </div>
         )}
 

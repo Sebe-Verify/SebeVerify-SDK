@@ -91,6 +91,7 @@ export function VerifyPageClient({
         onComplete={handleComplete}
         onClose={handleClose}
         returnUrl={returnUrl || undefined}
+        showHandoffQr={!initialMobileFlow}
         qrCodeImageUrl={qrCodeImageUrl}
         verifyPageUrl={verifyPageUrl}
       />
