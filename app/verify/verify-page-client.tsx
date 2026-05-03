@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { VerificationFlow } from "@/components/verification/verification-flow";
+import { VerifyRouteGate } from "@/components/verification/verify-route-gate";
 import { useVerificationStore } from "@/lib/verification-store";
 
 function readQuery() {
@@ -26,11 +27,20 @@ function readQuery() {
 }
 
 type VerifyPageClientProps = {
+  /** Server User-Agent hint for desktop vs mobile gate */
+  initialMobileFlow: boolean;
   /** From `/verify/[sessionId]` — preferred over `?session=` */
   sessionIdFromPath?: string;
+  qrCodeImageUrl?: string;
+  verifyPageUrl?: string;
 };
 
-export function VerifyPageClient({ sessionIdFromPath }: VerifyPageClientProps) {
+export function VerifyPageClient({
+  initialMobileFlow,
+  sessionIdFromPath,
+  qrCodeImageUrl,
+  verifyPageUrl,
+}: VerifyPageClientProps) {
   const [sessionId, setSessionIdState] = useState<string | null>(
     sessionIdFromPath ?? null,
   );
@@ -50,9 +60,7 @@ export function VerifyPageClient({ sessionIdFromPath }: VerifyPageClientProps) {
     const sid = sessionIdFromPath || session;
     setSessionIdState(sid);
     setReturnUrl(r);
-    if (sid) {
-      setSessionId(sid);
-    }
+    if (sid) setSessionId(sid);
     setApiConfig({
       backendUrl: backendUrl || undefined,
       sessionToken: sessionToken || undefined,
@@ -74,10 +82,19 @@ export function VerifyPageClient({ sessionIdFromPath }: VerifyPageClientProps) {
   };
 
   return (
-    <VerificationFlow
-      onComplete={handleComplete}
-      onClose={handleClose}
-      returnUrl={returnUrl || undefined}
-    />
+    <VerifyRouteGate
+      initialMobileFlow={initialMobileFlow}
+      verifyPageUrl={verifyPageUrl ?? ""}
+      qrCodeImageUrl={qrCodeImageUrl ?? ""}
+    >
+      <VerificationFlow
+        onComplete={handleComplete}
+        onClose={handleClose}
+        returnUrl={returnUrl || undefined}
+        showHandoffQr={!initialMobileFlow}
+        qrCodeImageUrl={qrCodeImageUrl}
+        verifyPageUrl={verifyPageUrl}
+      />
+    </VerifyRouteGate>
   );
 }
