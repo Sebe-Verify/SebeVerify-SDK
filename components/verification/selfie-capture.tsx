@@ -30,11 +30,25 @@ export function SelfieCapture() {
   // Small cooldown to prevent double-detection of the same gesture
   const cooldownRef = useRef(false)
 
+  // Pick challenges once per mount — do not re-run when `initLivenessEngine` identity changes
   useEffect(() => {
-    initLivenessEngine();
-    const shuffled = [...ALL_CHALLENGES].sort(() => 0.5 - Math.random());
-    setChallenges(shuffled.slice(0, 3)); // 3 random challenges
+    const shuffled = [...ALL_CHALLENGES].sort(() => 0.5 - Math.random())
+    setChallenges(shuffled.slice(0, 3))
+  }, [])
+
+  useEffect(() => {
+    void initLivenessEngine()
   }, [initLivenessEngine])
+
+  useEffect(() => {
+    if (
+      challenges.length > 0 &&
+      currentChallengeIndex >= challenges.length &&
+      !livenessPassed
+    ) {
+      setLivenessPassed(true)
+    }
+  }, [challenges.length, currentChallengeIndex, livenessPassed])
 
   // Store all 3 images when liveness is done
   const handleComplete = async () => {
@@ -124,12 +138,12 @@ export function SelfieCapture() {
                 return snapshot ? [...prev, snapshot] : prev;
               });
 
-              setCurrentChallengeIndex(ci => {
+              setCurrentChallengeIndex((ci) => {
                 const nextIndex = ci + 1;
-                if (nextIndex >= challenges.length) {
-                  setLivenessPassed(true);
-                } else {
-                  setTimeout(() => { cooldownRef.current = false; }, 2500);
+                if (nextIndex < challenges.length) {
+                  setTimeout(() => {
+                    cooldownRef.current = false;
+                  }, 2500);
                 }
                 return nextIndex;
               });
@@ -170,12 +184,12 @@ export function SelfieCapture() {
     : "";
 
   const instructions = isInitializing
-    ? "Liveness Check In Progress..."
+    ? "Loading face detection… This may take up to a minute on a slow connection."
     : mpError
-    ? "Liveness Check Failed."
+    ? `Face detection could not start: ${mpError.message}`
     : livenessPassed
-    ? "Liveness Check Completed!"
-    : currentLabel;
+    ? "Liveness check completed!"
+    : currentLabel || "Preparing camera…"
 
   return (
     <div className="flex flex-col flex-1 relative">
@@ -231,8 +245,10 @@ export function SelfieCapture() {
             {livenessPassed
               ? "Completed ✓"
               : isInitializing
-              ? "Liveness Check In Progress..."
-              : `Step ${completedCount + 1} of ${challenges.length}`}
+              ? "Loading face detection…"
+              : challenges.length > 0
+                ? `Step ${Math.min(completedCount + 1, challenges.length)} of ${challenges.length}`
+                : "Preparing…"}
           </span>
         </div>
       </div>
