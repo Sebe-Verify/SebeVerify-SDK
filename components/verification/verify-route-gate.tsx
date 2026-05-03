@@ -52,10 +52,20 @@ export function VerifyRouteGate({
             Access to a high-quality smartphone camera is required to securely capture your identity documents.
           </p>
           <div className="mb-6 flex flex-col items-center rounded-2xl border border-gray-100 bg-gray-50 p-6">
-            <img src={qrCodeImageUrl} alt="" className="mb-4 h-40 w-40 rounded-xl shadow-sm" />
+            {qrCodeImageUrl ? (
+              <img
+                src={qrCodeImageUrl}
+                alt=""
+                className="mb-4 h-40 w-40 rounded-xl shadow-sm"
+              />
+            ) : null}
             <p className="text-sm font-medium text-gray-700">Scan to open on your phone</p>
           </div>
-          <p className="mb-2 break-all text-xs text-muted-foreground">{verifyPageUrl}</p>
+          {verifyPageUrl ? (
+            <p className="mb-2 break-all text-xs text-muted-foreground">
+              {verifyPageUrl}
+            </p>
+          ) : null}
           <p className="text-xs text-gray-400">Powered by SebeVerify</p>
         </div>
       </div>

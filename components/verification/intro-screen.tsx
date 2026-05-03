@@ -1,29 +1,38 @@
-"use client"
+"use client";
 
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { useVerificationStore } from "@/lib/verification-store"
+import { useVerificationStore } from "@/lib/verification-store";
 
-export function IntroScreen() {
-  const setStep = useVerificationStore((state) => state.setStep)
+interface IntroScreenProps {
+  qrCodeImageUrl?: string;
+  verifyPageUrl?: string;
+}
+
+export function IntroScreen({
+  qrCodeImageUrl,
+  verifyPageUrl,
+}: IntroScreenProps) {
+  const setStep = useVerificationStore((state) => state.setStep);
 
   const goToDocSelect = () => {
-    setStep("doc-select")
-  }
+    setStep("doc-select");
+  };
 
+  // Show QR code if available (generated for this session), otherwise show static image
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center px-6 pb-6 pt-10 text-center">
         <div className="relative mb-10 flex justify-center">
-          <Image
-            src="/verify-secure.svg"
-            alt=""
-            width={144}
-            height={200}
-            className="pointer-events-none relative h-44 w-auto max-w-[10rem] object-contain drop-shadow-sm select-none"
-            priority
-            draggable={false}
-          />
+          {qrCodeImageUrl ? (
+            <img
+              src={qrCodeImageUrl}
+              alt="Scan to verify on mobile"
+              className="h-40 w-40 rounded-xl shadow-sm"
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              QR code could not be generated
+            </p>
+          )}
         </div>
 
         <div
@@ -34,6 +43,17 @@ export function IntroScreen() {
           <span className="h-2 w-10 rounded-full bg-primary" />
           <span className="h-2 w-10 rounded-full bg-muted" />
         </div>
+
+        {qrCodeImageUrl && verifyPageUrl && (
+          <div className="mb-6 max-w-xs">
+            <p className="mb-2 text-sm text-muted-foreground">
+              Scan to continue on mobile
+            </p>
+            <p className="break-all text-xs text-muted-foreground">
+              {verifyPageUrl}
+            </p>
+          </div>
+        )}
 
         <h1 className="mb-3 max-w-[18rem] text-3xl font-bold tracking-tight text-foreground">
           Verify your identity
@@ -52,8 +72,10 @@ export function IntroScreen() {
         >
           Start verification
         </button>
-        <p className="mt-4 text-center text-xs text-muted-foreground">Powered by SebeVerify</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Powered by SebeVerify
+        </p>
       </div>
     </div>
-  )
+  );
 }
