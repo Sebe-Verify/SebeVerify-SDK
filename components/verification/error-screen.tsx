@@ -10,10 +10,11 @@ interface ErrorScreenProps {
 }
 
 export function ErrorScreen({ onRetry, onClose }: ErrorScreenProps) {
-  const { errorMessage, reset } = useVerificationStore()
+  const { errorMessage, resetFlow } = useVerificationStore()
 
   const handleRetry = () => {
-    reset()
+    // resetFlow keeps backendUrl/projectId/apiKey so project mode stays active
+    resetFlow()
     if (onRetry) {
       onRetry()
     }

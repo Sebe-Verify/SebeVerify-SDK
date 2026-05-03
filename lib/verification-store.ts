@@ -19,6 +19,13 @@ export type VerificationStep =
 
 export type DocumentType = "passport" | "national_id" | "driver_license";
 
+// Backend uses hyphenated values; driver_license has no backend equivalent so falls back to national-id
+const BACKEND_DOC_TYPE: Record<DocumentType, string> = {
+  passport: "passport",
+  national_id: "national-id",
+  driver_license: "national-id",
+};
+
 export interface VerificationData {
   sessionId: string | null;
   documentType: DocumentType | null;
@@ -46,9 +53,17 @@ interface VerificationState {
   projectId: string | null;
   apiKey: string | null;
 
+  // Set once when doc type is selected; sent to backend for session start and upload
+  documentId: string | null;
+  // session_id returned by backend /verification/session/start
+  backendSessionId: string | null;
+  // request_id returned by backend /verification/image (used for status polling)
+  requestId: string | null;
+
   setSessionId: (id: string) => void;
   setStep: (step: VerificationStep) => void;
   setDocumentType: (type: DocumentType) => void;
+  setDocumentId: (id: string) => void;
   setFrontImage: (image: string) => void;
   setBackImage: (image: string) => void;
   setSelfieImage: (image: string) => void;
@@ -63,6 +78,7 @@ interface VerificationState {
   getVerificationData: () => VerificationData;
   submitVerification: () => Promise<void>;
   reset: () => void;
+  resetFlow: () => void;
   goBack: () => void;
 }
 
@@ -92,18 +108,28 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   sessionToken: null,
   projectId: null,
   apiKey: null,
+  documentId: null,
+  backendSessionId: null,
+  requestId: null,
 
   setSessionId: (id) => set({ sessionId: id }),
 
   setStep: (step) => set({ currentStep: step }),
 
   setDocumentType: (type) => {
-    set({ documentType: type });
+    const existing = get().documentId;
+    set({
+      documentType: type,
+      // Generate once; stable across the whole verification attempt
+      documentId: existing ?? crypto.randomUUID(),
+    });
     const sid = get().sessionId;
     if (isMockSessionId(sid)) {
       void apiUpdateMockSession(sid!, { documentType: type });
     }
   },
+
+  setDocumentId: (id) => set({ documentId: id }),
 
   setFrontImage: (image) => {
     set({ frontImage: image });
@@ -165,13 +191,18 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
     const hasV1SessionMode = Boolean(
       state.backendUrl && state.sessionToken && sid,
     );
+    // sid is NOT required — backendSessionId comes from session/start, not the URL session param
     const hasProjectMode = Boolean(
-      state.backendUrl && state.projectId && state.apiKey && sid,
+      state.backendUrl && state.projectId && state.apiKey,
     );
 
     if (hasV1SessionMode && state.backendUrl && state.sessionToken && sid) {
       try {
-        const formData = buildFormData(state);
+        const formData = buildFormData(
+          state,
+          BACKEND_DOC_TYPE[state.documentType ?? "national_id"],
+          state.documentId ?? crypto.randomUUID(),
+        );
 
         const uploadRes = await fetch(
           `${state.backendUrl}/v1/sessions/${sid}/upload`,
@@ -216,35 +247,111 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         });
         return;
       }
-    } else if (
-      hasProjectMode &&
-      state.backendUrl &&
-      state.projectId &&
-      state.apiKey &&
-      sid
-    ) {
-      try {
-        const formData = buildFormData(state);
-        formData.append("session_id", sid);
+    } else if (hasProjectMode) {
+      // hasProjectMode guarantees these are non-null
+      const backendUrl = state.backendUrl!;
+      const projectId = state.projectId!;
+      const apiKey = state.apiKey!;
 
-        const submitRes = await fetch(
-          `${state.backendUrl}/projects/${state.projectId}/verification/image`,
+      try {
+        if (!state.frontImage || !state.selfieImage) {
+          throw new Error("Captured images are missing — front document and selfie are required");
+        }
+
+        const backendDocType = BACKEND_DOC_TYPE[state.documentType ?? "national_id"];
+        const docId = state.documentId ?? crypto.randomUUID();
+
+        // 1. Create a backend verification session (required before image upload)
+        console.log("[SebeVerify] Starting session…", { backendUrl, projectId, backendDocType });
+        const sessionRes = await fetch(
+          `${backendUrl}/projects/${projectId}/verification/session/start`,
           {
             method: "POST",
             headers: {
-              "X-API-Key": state.apiKey,
+              "X-API-Key": apiKey,
+              "Content-Type": "application/json",
             },
-            body: formData,
+            body: JSON.stringify({
+              document_type: backendDocType,
+              document_id: docId,
+            }),
           },
         );
-
-        if (!submitRes.ok) {
-          throw new Error("Failed to submit verification images");
+        if (!sessionRes.ok) {
+          const body = await sessionRes.text();
+          throw new Error(`session/start ${sessionRes.status}: ${body}`);
         }
+        const { session_id: backendSessionId } = (await sessionRes.json()) as {
+          session_id: string;
+        };
+        set({ backendSessionId });
+        console.log("[SebeVerify] Session created:", backendSessionId);
+
+        // 2. Upload images + liveness frames
+        let formData: FormData;
+        try {
+          formData = buildFormData(state, backendDocType, docId);
+        } catch (buildErr) {
+          throw new Error(
+            `Failed to encode images for upload: ${buildErr instanceof Error ? buildErr.message : String(buildErr)}`,
+          );
+        }
+        formData.append("session_id", backendSessionId);
+        console.log(
+          "[SebeVerify] Uploading images… front=%s selfie=%s liveness=%d",
+          state.frontImage ? "✓" : "✗",
+          state.selfieImage ? "✓" : "✗",
+          state.livenessImages.length,
+        );
+
+        let submitRes: Response;
+        try {
+          submitRes = await fetch(
+            `${backendUrl}/projects/${projectId}/verification/image`,
+            {
+              method: "POST",
+              headers: { "X-API-Key": apiKey },
+              body: formData,
+            },
+          );
+        } catch (fetchErr) {
+          throw new Error(
+            `Upload request failed (network/CORS): ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`,
+          );
+        }
+        if (!submitRes.ok) {
+          const body = await submitRes.text();
+          throw new Error(`verification/image ${submitRes.status}: ${body}`);
+        }
+        const { request_id: requestId } = (await submitRes.json()) as {
+          request_id: string;
+        };
+        set({ requestId });
+        console.log("[SebeVerify] Upload accepted, request_id:", requestId);
+
+        // 3. Poll until the backend finishes processing (max 60 s)
+        const maxAttempts = 30;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+          try {
+            const statusRes = await fetch(
+              `${backendUrl}/projects/${projectId}/verifications/${requestId}/status`,
+              { headers: { "X-API-Key": apiKey } },
+            );
+            if (statusRes.ok) {
+              const statusData = (await statusRes.json()) as { result_ready: boolean };
+              console.log("[SebeVerify] Poll attempt", attempt + 1, "— result_ready:", statusData.result_ready);
+              if (statusData.result_ready) break;
+            }
+          } catch {
+            // transient network error — keep polling
+          }
+        }
+        console.log("[SebeVerify] Verification complete");
       } catch (e) {
-        console.error("Project API submit failed:", e);
+        console.error("[SebeVerify] Project API submit failed:", e);
         set({
-          errorMessage: "Verification submission failed",
+          errorMessage: e instanceof Error ? e.message : "Verification submission failed",
           currentStep: "error",
         });
         return;
@@ -275,14 +382,19 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       }
     }
 
-    await new Promise((resolve) =>
-      setTimeout(resolve, state.sessionId ? 400 : 2000),
-    );
+    // Brief pause for mock / V1 session modes; project mode already waited during polling
+    if (!hasProjectMode) {
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, state.sessionId ? 400 : 2000),
+      );
+    }
 
     const submittedAt = new Date().toISOString();
     set({ submittedAt, currentStep: "submitted" });
   },
 
+  // Full reset — clears everything including API config. Used when navigating to a
+  // fresh verify URL (verify-page-client calls this before wiring new URL params).
   reset: () =>
     set({
       sessionId: null,
@@ -298,7 +410,34 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       sessionToken: null,
       projectId: null,
       apiKey: null,
+      documentId: null,
+      backendSessionId: null,
+      requestId: null,
     }),
+
+  // Partial reset — clears captured images and flow state but keeps the API config
+  // (backendUrl, projectId, apiKey, sessionId) so a retry within the same session
+  // stays in project mode instead of falling through to mock mode.
+  resetFlow: () =>
+    set((s) => ({
+      currentStep: "intro",
+      documentType: null,
+      frontImage: null,
+      backImage: null,
+      selfieImage: null,
+      livenessImages: [],
+      submittedAt: null,
+      errorMessage: null,
+      documentId: null,
+      backendSessionId: null,
+      requestId: null,
+      // Preserve: sessionId, backendUrl, sessionToken, projectId, apiKey
+      sessionId: s.sessionId,
+      backendUrl: s.backendUrl,
+      sessionToken: s.sessionToken,
+      projectId: s.projectId,
+      apiKey: s.apiKey,
+    })),
 
   goBack: () => {
     const { currentStep, documentType } = get();
@@ -314,30 +453,35 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   },
 }));
 
-function buildFormData(state: {
-  documentType: DocumentType | null;
-  frontImage: string | null;
-  backImage: string | null;
-  selfieImage: string | null;
-}) {
+function buildFormData(
+  state: {
+    frontImage: string | null;
+    backImage: string | null;
+    selfieImage: string | null;
+    livenessImages: string[];
+  },
+  backendDocumentType: string,
+  documentId: string,
+) {
   const formData = new FormData();
-  formData.append("document_type", state.documentType || "national_id");
-  formData.append("document_id", "ID-" + Date.now());
+  formData.append("document_type", backendDocumentType);
+  formData.append("document_id", documentId);
 
   if (state.frontImage) {
-    const frontBlob = dataURLtoBlob(state.frontImage);
-    formData.append("document_image", frontBlob, "front.jpg");
+    formData.append("document_image", dataURLtoBlob(state.frontImage), "front.jpg");
   }
 
   if (state.selfieImage) {
-    const selfieBlob = dataURLtoBlob(state.selfieImage);
-    formData.append("person_image", selfieBlob, "selfie.jpg");
+    formData.append("person_image", dataURLtoBlob(state.selfieImage), "selfie.jpg");
   }
 
   if (state.backImage) {
-    const backBlob = dataURLtoBlob(state.backImage);
-    formData.append("document_image_back", backBlob, "back.jpg");
+    formData.append("document_image_back", dataURLtoBlob(state.backImage), "back.jpg");
   }
+
+  state.livenessImages.forEach((img, idx) => {
+    formData.append("liveness_images", dataURLtoBlob(img), `liveness_${idx}.jpg`);
+  });
 
   return formData;
 }

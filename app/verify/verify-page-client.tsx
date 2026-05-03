@@ -47,6 +47,7 @@ export function VerifyPageClient({
   const [returnUrl, setReturnUrl] = useState<string | null>(null);
   const setSessionId = useVerificationStore((state) => state.setSessionId);
   const setApiConfig = useVerificationStore((state) => state.setApiConfig);
+  const reset = useVerificationStore((state) => state.reset);
 
   useEffect(() => {
     const {
@@ -58,6 +59,10 @@ export function VerifyPageClient({
       apiKey,
     } = readQuery();
     const sid = sessionIdFromPath || session;
+
+    // Clear all state from any previous verification attempt before wiring up the new session.
+    reset();
+
     setSessionIdState(sid);
     setReturnUrl(r);
     if (sid) setSessionId(sid);
@@ -67,7 +72,7 @@ export function VerifyPageClient({
       projectId: projectId || undefined,
       apiKey: apiKey || undefined,
     });
-  }, [sessionIdFromPath, setApiConfig, setSessionId]);
+  }, [sessionIdFromPath, reset, setApiConfig, setSessionId]);
 
   const handleComplete = () => {
     if (returnUrl) {
