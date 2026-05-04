@@ -1,16 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
-/** Pin to the installed package version so WASM matches the JS API. */
-const WASM_BASE =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
-
 /**
- * Hosted model from Google — avoids requiring `public/models/face_landmarker.task`
- * (missing file previously caused failed or indefinitely hanging loads).
+ * WASM runtime and model served from /public/mediapipe/ (copied by
+ * scripts/setup-mediapipe.mjs at install/build time). This avoids
+ * runtime CDN dependencies and version mismatches.
  */
-const FACE_LANDMARKER_MODEL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const WASM_BASE = "/mediapipe/wasm";
+const FACE_LANDMARKER_MODEL = "/mediapipe/models/face_landmarker.task";
 
 const INIT_TIMEOUT_MS = 120_000;
 

@@ -48,6 +48,9 @@ interface VerificationState {
   errorMessage: string | null;
   errorDebug: string | null;
 
+  // Prevents duplicate submissions (double-tap, fast retries)
+  isSubmitting: boolean;
+
   // SDK config (set from verify page query params)
   backendUrl: string | null;
   sessionToken: string | null;
@@ -95,6 +98,10 @@ const stepOrder: VerificationStep[] = [
   "submitted",
 ];
 
+// Module-level abort controller so in-flight fetches and polling are cancelled
+// whenever the user navigates away or a new submission starts.
+let submissionAbortController: AbortController | null = null;
+
 export const useVerificationStore = create<VerificationState>((set, get) => ({
   sessionId: null,
   currentStep: "intro",
@@ -106,6 +113,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   submittedAt: null,
   errorMessage: null,
   errorDebug: null,
+  isSubmitting: false,
   backendUrl: null,
   sessionToken: null,
   projectId: null,
@@ -161,7 +169,8 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
     set({ livenessImages: images });
   },
 
-  setError: (message) => set({ errorMessage: message, errorDebug: null, currentStep: "error" }),
+  setError: (message) =>
+    set({ errorMessage: message, errorDebug: null, currentStep: "error", isSubmitting: false }),
 
   setApiConfig: ({ backendUrl, sessionToken, projectId, apiKey }) => {
     set({
@@ -186,7 +195,15 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   },
 
   submitVerification: async () => {
-    set({ currentStep: "submitting" });
+    // Guard: prevent duplicate submissions from double-taps or race conditions
+    if (get().isSubmitting) return;
+
+    // Cancel any previous in-flight submission before starting a new one
+    submissionAbortController?.abort();
+    submissionAbortController = new AbortController();
+    const { signal } = submissionAbortController;
+
+    set({ currentStep: "submitting", isSubmitting: true });
     const state = get();
     let sid = state.sessionId;
 
@@ -198,8 +215,8 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       state.backendUrl && state.projectId && state.apiKey,
     );
 
-    if (hasV1SessionMode && state.backendUrl && state.sessionToken && sid) {
-      try {
+    try {
+      if (hasV1SessionMode && state.backendUrl && state.sessionToken && sid) {
         const formData = buildFormData(
           state,
           BACKEND_DOC_TYPE[state.documentType ?? "national_id"],
@@ -212,6 +229,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
             method: "POST",
             headers: { "X-Session-Token": state.sessionToken },
             body: formData,
+            signal,
           },
         );
 
@@ -219,6 +237,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
           throw new Error("Failed to upload images");
         }
 
+        // Complete call sends only metadata — images were already uploaded above
         const completeRes = await fetch(
           `${state.backendUrl}/v1/sessions/${sid}/complete`,
           {
@@ -229,33 +248,21 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
             },
             body: JSON.stringify({
               document_type: state.documentType || "national_id",
-              document_id: "ID-" + Date.now(),
-              front_image: state.frontImage,
-              back_image: state.backImage,
-              selfie_image: state.selfieImage,
-              liveness_images: state.livenessImages,
+              document_id: state.documentId ?? "ID-" + Date.now(),
             }),
+            signal,
           },
         );
 
         if (!completeRes.ok) {
           throw new Error("Failed to complete session");
         }
-      } catch (e) {
-        console.error("Session token submit failed:", e);
-        set({
-          errorMessage: "Verification submission failed",
-          currentStep: "error",
-        });
-        return;
-      }
-    } else if (hasProjectMode) {
-      // hasProjectMode guarantees these are non-null
-      const backendUrl = state.backendUrl!;
-      const projectId = state.projectId!;
-      const apiKey = state.apiKey!;
+      } else if (hasProjectMode) {
+        // hasProjectMode guarantees these are non-null
+        const backendUrl = state.backendUrl!;
+        const projectId = state.projectId!;
+        const apiKey = state.apiKey!;
 
-      try {
         if (!state.frontImage || !state.selfieImage) {
           throw new Error("Captured images are missing — front document and selfie are required");
         }
@@ -277,6 +284,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
               document_type: backendDocType,
               document_id: docId,
             }),
+            signal,
           },
         );
         if (!sessionRes.ok) {
@@ -313,6 +321,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
             method: "POST",
             headers: { "X-API-Key": apiKey },
             body: formData,
+            signal,
           });
         } catch (fetchErr) {
           const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
@@ -343,70 +352,85 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         const maxAttempts = 30;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+          // Stop polling if the submission was cancelled (e.g. user navigated away)
+          if (signal.aborted) break;
           try {
             const statusRes = await fetch(
               `${backendUrl}/projects/${projectId}/verifications/${requestId}/status`,
-              { headers: { "X-API-Key": apiKey } },
+              { headers: { "X-API-Key": apiKey }, signal },
             );
             if (statusRes.ok) {
               const statusData = (await statusRes.json()) as { result_ready: boolean };
               console.log("[SebeVerify] Poll attempt", attempt + 1, "— result_ready:", statusData.result_ready);
               if (statusData.result_ready) break;
             }
-          } catch {
+          } catch (pollErr) {
+            if ((pollErr as Error).name === "AbortError") break;
             // transient network error — keep polling
           }
         }
         console.log("[SebeVerify] Verification complete");
-      } catch (e) {
-        console.error("[SebeVerify] Project API submit failed:", e);
-        set({
-          errorMessage: e instanceof Error ? e.message : "Verification submission failed",
-          errorDebug: (e as { debug?: string }).debug ?? null,
-          currentStep: "error",
-        });
-        return;
-      }
-    } else {
-      try {
-        if (!isMockSessionId(sid)) {
-          const res = await fetch("/api/mock/session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+      } else {
+        // Mock mode — local dev only
+        try {
+          if (!isMockSessionId(sid)) {
+            const res = await fetch("/api/mock/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            const json = (await res.json()) as { sessionId: string };
+            sid = json.sessionId;
+            set({ sessionId: sid });
+          }
+
+          await apiUpdateMockSession(sid!, {
+            documentType: state.documentType ?? undefined,
+            frontImage: state.frontImage ?? undefined,
+            backImage: state.backImage ?? undefined,
+            selfieImage: state.selfieImage ?? undefined,
+            livenessImages:
+              state.livenessImages.length > 0 ? state.livenessImages : undefined,
           });
-          const json = (await res.json()) as { sessionId: string };
-          sid = json.sessionId;
-          set({ sessionId: sid });
+          await apiCompleteMockSession(sid!);
+        } catch (e) {
+          console.error("Mock submit failed:", e);
+          // Mock failures are non-fatal — fall through to submitted state
         }
-
-        await apiUpdateMockSession(sid!, {
-          documentType: state.documentType ?? undefined,
-          frontImage: state.frontImage ?? undefined,
-          backImage: state.backImage ?? undefined,
-          selfieImage: state.selfieImage ?? undefined,
-          livenessImages:
-            state.livenessImages.length > 0 ? state.livenessImages : undefined,
-        });
-        await apiCompleteMockSession(sid!);
-      } catch (e) {
-        console.error("Mock submit failed:", e);
       }
-    }
 
-    // Brief pause for mock / V1 session modes; project mode already waited during polling
-    if (!hasProjectMode) {
-      await new Promise<void>((resolve) =>
-        setTimeout(resolve, state.sessionId ? 400 : 2000),
-      );
-    }
+      // Brief pause for mock / V1 session modes; project mode already waited during polling
+      if (!hasProjectMode) {
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, state.sessionId ? 400 : 2000),
+        );
+      }
 
-    const submittedAt = new Date().toISOString();
-    set({ submittedAt, currentStep: "submitted" });
+      // Don't transition to submitted if the submission was aborted
+      if (signal.aborted) return;
+
+      const submittedAt = new Date().toISOString();
+      set({ submittedAt, currentStep: "submitted" });
+    } catch (e) {
+      // User navigated away mid-submission — not an error worth showing
+      if ((e as Error).name === "AbortError") return;
+
+      console.error("[SebeVerify] Submit failed:", e);
+      set({
+        errorMessage: e instanceof Error ? e.message : "Verification submission failed",
+        errorDebug: (e as { debug?: string }).debug ?? null,
+        currentStep: "error",
+      });
+    } finally {
+      set({ isSubmitting: false });
+      submissionAbortController = null;
+    }
   },
 
   // Full reset — clears everything including API config. Used when navigating to a
   // fresh verify URL (verify-page-client calls this before wiring new URL params).
-  reset: () =>
+  reset: () => {
+    submissionAbortController?.abort();
+    submissionAbortController = null;
     set({
       sessionId: null,
       currentStep: "intro",
@@ -418,6 +442,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       submittedAt: null,
       errorMessage: null,
       errorDebug: null,
+      isSubmitting: false,
       backendUrl: null,
       sessionToken: null,
       projectId: null,
@@ -425,12 +450,15 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       documentId: null,
       backendSessionId: null,
       requestId: null,
-    }),
+    });
+  },
 
   // Partial reset — clears captured images and flow state but keeps the API config
   // (backendUrl, projectId, apiKey, sessionId) so a retry within the same session
   // stays in project mode instead of falling through to mock mode.
-  resetFlow: () =>
+  resetFlow: () => {
+    submissionAbortController?.abort();
+    submissionAbortController = null;
     set((s) => ({
       currentStep: "intro",
       documentType: null,
@@ -440,6 +468,8 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       livenessImages: [],
       submittedAt: null,
       errorMessage: null,
+      errorDebug: null,
+      isSubmitting: false,
       documentId: null,
       backendSessionId: null,
       requestId: null,
@@ -449,12 +479,22 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       sessionToken: s.sessionToken,
       projectId: s.projectId,
       apiKey: s.apiKey,
-    })),
+    }));
+  },
 
   goBack: () => {
     const { currentStep, documentType } = get();
-    const currentIndex = stepOrder.indexOf(currentStep);
 
+    // Cannot navigate back from terminal or in-progress states
+    if (
+      currentStep === "error" ||
+      currentStep === "submitting" ||
+      currentStep === "submitted"
+    ) {
+      return;
+    }
+
+    const currentIndex = stepOrder.indexOf(currentStep);
     if (currentIndex > 0) {
       if (currentStep === "review" && documentType === "passport") {
         set({ currentStep: "id-front" });
@@ -501,12 +541,7 @@ function buildFormData(
 function dataURLtoBlob(dataURL: string): Blob {
   const base64Data = dataURL.replace(/^data:image\/\w+;base64,/, "");
   const byteCharacters = atob(base64Data);
-  const byteNumbers = new Array(byteCharacters.length);
-
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-
-  const byteArray = new Uint8Array(byteNumbers);
+  // Uint8Array.from avoids the intermediate JS number array, halving peak memory use
+  const byteArray = Uint8Array.from(byteCharacters, (c) => c.charCodeAt(0));
   return new Blob([byteArray], { type: "image/jpeg" });
 }

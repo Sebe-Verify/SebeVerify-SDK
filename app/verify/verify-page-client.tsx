@@ -26,6 +26,31 @@ function readQuery() {
   };
 }
 
+/**
+ * Validates that a returnUrl is a safe absolute HTTP/HTTPS URL.
+ * Rejects relative paths, javascript: URIs, and malformed values.
+ */
+function isValidReturnUrl(url: string | null): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function buildRedirectUrl(
+  returnUrl: string,
+  status: string,
+  sessionId: string | null,
+): string {
+  const url = new URL(returnUrl);
+  url.searchParams.set("status", status);
+  if (sessionId) url.searchParams.set("session", sessionId);
+  return url.toString();
+}
+
 type VerifyPageClientProps = {
   /** Server User-Agent hint for desktop vs mobile gate */
   initialMobileFlow: boolean;
@@ -63,8 +88,18 @@ export function VerifyPageClient({
     // Clear all state from any previous verification attempt before wiring up the new session.
     reset();
 
-    setSessionIdState(sid);
-    setReturnUrl(r);
+    setSessionIdState(sid ?? null);
+
+    // Only accept returnUrl values that are safe absolute HTTP/HTTPS URLs
+    if (isValidReturnUrl(r)) {
+      setReturnUrl(r);
+      console.log('[SebeVerify] ✅ Valid returnUrl set:', r);
+    } else if (r) {
+      console.warn("[SebeVerify] ❌ Ignoring invalid returnUrl:", r, "- must be absolute HTTP/HTTPS URL");
+    } else {
+      console.warn("[SebeVerify] ⚠️ No returnUrl provided - will use fallback redirect (history.back() or /)");
+    }
+
     if (sid) setSessionId(sid);
     setApiConfig({
       backendUrl: backendUrl || undefined,
@@ -75,14 +110,27 @@ export function VerifyPageClient({
   }, [sessionIdFromPath, reset, setApiConfig, setSessionId]);
 
   const handleComplete = () => {
-    if (returnUrl) {
-      window.location.href = `${returnUrl}?status=success&session=${sessionId}`;
+    if (isValidReturnUrl(returnUrl)) {
+      window.location.href = buildRedirectUrl(returnUrl, "success", sessionId);
+    } else {
+      // No returnUrl — just go back or to the root
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "/";
+      }
     }
   };
 
   const handleClose = () => {
-    if (returnUrl) {
-      window.location.href = `${returnUrl}?status=cancelled&session=${sessionId}`;
+    if (isValidReturnUrl(returnUrl)) {
+      window.location.href = buildRedirectUrl(returnUrl, "cancelled", sessionId);
+    } else {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "/";
+      }
     }
   };
 

@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/setup-mediapipe.mjs && next build",
     "build:sdk": "pnpm --filter @sebeverify/web-sdk build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "node scripts/setup-mediapipe.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -49,6 +50,7 @@
     "input-otp": "1.4.2",
     "lucide-react": "^0.564.0",
     "next": "16.2.0",
+    "qrcode": "^1.5.4",
     "next-themes": "^0.4.6",
     "react": "^19",
     "react-day-picker": "9.13.2",
@@ -65,6 +67,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",
     "@types/node": "^22",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "postcss": "^8.5",
