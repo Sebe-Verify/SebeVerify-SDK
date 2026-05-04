@@ -46,6 +46,7 @@ interface VerificationState {
   livenessImages: string[];
   submittedAt: string | null;
   errorMessage: string | null;
+  errorDebug: string | null;
 
   // SDK config (set from verify page query params)
   backendUrl: string | null;
@@ -104,6 +105,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   livenessImages: [],
   submittedAt: null,
   errorMessage: null,
+  errorDebug: null,
   backendUrl: null,
   sessionToken: null,
   projectId: null,
@@ -159,7 +161,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
     set({ livenessImages: images });
   },
 
-  setError: (message) => set({ errorMessage: message, currentStep: "error" }),
+  setError: (message) => set({ errorMessage: message, errorDebug: null, currentStep: "error" }),
 
   setApiConfig: ({ backendUrl, sessionToken, projectId, apiKey }) => {
     set({
@@ -304,19 +306,27 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
           state.livenessImages.length,
         );
 
+        const uploadUrl = `${backendUrl}/projects/${projectId}/verification/image`;
         let submitRes: Response;
         try {
-          submitRes = await fetch(
-            `${backendUrl}/projects/${projectId}/verification/image`,
-            {
-              method: "POST",
-              headers: { "X-API-Key": apiKey },
-              body: formData,
-            },
-          );
+          submitRes = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "X-API-Key": apiKey },
+            body: formData,
+          });
         } catch (fetchErr) {
-          throw new Error(
-            `Upload request failed (network/CORS): ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`,
+          const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+          throw Object.assign(
+            new Error(`Upload blocked — ${msg}`),
+            {
+              debug: [
+                `URL: POST ${uploadUrl}`,
+                `Origin: ${typeof window !== "undefined" ? window.location.origin : "unknown"}`,
+                `Cause: ${msg}`,
+                `Tip: If using HTTPS (ngrok), the browser blocks HTTP-localhost requests.`,
+                `     Open Chrome DevTools → Console/Network for the full error.`,
+              ].join("\n"),
+            },
           );
         }
         if (!submitRes.ok) {
@@ -352,6 +362,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         console.error("[SebeVerify] Project API submit failed:", e);
         set({
           errorMessage: e instanceof Error ? e.message : "Verification submission failed",
+          errorDebug: (e as { debug?: string }).debug ?? null,
           currentStep: "error",
         });
         return;
@@ -406,6 +417,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       livenessImages: [],
       submittedAt: null,
       errorMessage: null,
+      errorDebug: null,
       backendUrl: null,
       sessionToken: null,
       projectId: null,
