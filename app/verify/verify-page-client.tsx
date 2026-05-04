@@ -10,7 +10,6 @@ function readQuery() {
     return {
       session: null as string | null,
       returnUrl: null as string | null,
-      backendUrl: null as string | null,
       sessionToken: null as string | null,
       projectId: null as string | null,
       apiKey: null as string | null,
@@ -19,11 +18,35 @@ function readQuery() {
   return {
     session: params.get("session"),
     returnUrl: params.get("returnUrl") || params.get("return_url"),
-    backendUrl: params.get("backendUrl"),
     sessionToken: params.get("sessionToken"),
     projectId: params.get("projectId"),
     apiKey: params.get("apiKey"),
   };
+}
+
+/**
+ * Validates that a returnUrl is a safe absolute HTTP/HTTPS URL.
+ * Rejects relative paths, javascript: URIs, and malformed values.
+ */
+function isValidReturnUrl(url: string | null): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function buildRedirectUrl(
+  returnUrl: string,
+  status: string,
+  sessionId: string | null,
+): string {
+  const url = new URL(returnUrl);
+  url.searchParams.set("status", status);
+  if (sessionId) url.searchParams.set("session", sessionId);
+  return url.toString();
 }
 
 type VerifyPageClientProps = {
@@ -47,37 +70,63 @@ export function VerifyPageClient({
   const [returnUrl, setReturnUrl] = useState<string | null>(null);
   const setSessionId = useVerificationStore((state) => state.setSessionId);
   const setApiConfig = useVerificationStore((state) => state.setApiConfig);
+  const reset = useVerificationStore((state) => state.reset);
 
   useEffect(() => {
     const {
       session,
       returnUrl: r,
-      backendUrl,
       sessionToken,
       projectId,
       apiKey,
     } = readQuery();
     const sid = sessionIdFromPath || session;
-    setSessionIdState(sid);
-    setReturnUrl(r);
+
+    // Clear all state from any previous verification attempt before wiring up the new session.
+    reset();
+
+    setSessionIdState(sid ?? null);
+
+    // Only accept returnUrl values that are safe absolute HTTP/HTTPS URLs
+    if (isValidReturnUrl(r)) {
+      setReturnUrl(r);
+      console.log('[SebeVerify] ✅ Valid returnUrl set:', r);
+    } else if (r) {
+      console.warn("[SebeVerify] ❌ Ignoring invalid returnUrl:", r, "- must be absolute HTTP/HTTPS URL");
+    } else {
+      console.warn("[SebeVerify] ⚠️ No returnUrl provided - will use fallback redirect (history.back() or /)");
+    }
+
     if (sid) setSessionId(sid);
     setApiConfig({
-      backendUrl: backendUrl || undefined,
       sessionToken: sessionToken || undefined,
       projectId: projectId || undefined,
       apiKey: apiKey || undefined,
     });
-  }, [sessionIdFromPath, setApiConfig, setSessionId]);
+  }, [sessionIdFromPath, reset, setApiConfig, setSessionId]);
 
   const handleComplete = () => {
-    if (returnUrl) {
-      window.location.href = `${returnUrl}?status=success&session=${sessionId}`;
+    if (isValidReturnUrl(returnUrl)) {
+      window.location.href = buildRedirectUrl(returnUrl, "success", sessionId);
+    } else {
+      // No returnUrl — just go back or to the root
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "/";
+      }
     }
   };
 
   const handleClose = () => {
-    if (returnUrl) {
-      window.location.href = `${returnUrl}?status=cancelled&session=${sessionId}`;
+    if (isValidReturnUrl(returnUrl)) {
+      window.location.href = buildRedirectUrl(returnUrl, "cancelled", sessionId);
+    } else {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "/";
+      }
     }
   };
 

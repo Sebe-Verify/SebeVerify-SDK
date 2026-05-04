@@ -7,7 +7,6 @@
 export interface SebeVerifyConfig {
   apiKey: string;
   projectId: string;
-  backendUrl?: string;
   /** Public URL where the SebeVerify web app is hosted (serves /verify/[sessionId]) */
   webAppUrl?: string;
   redirectUrl: string;
@@ -61,11 +60,7 @@ class SebeVerifySDK {
   private config: SebeVerifyConfig;
   private eventListeners: Map<EventType, EventCallback[]> = new Map();
   private sessionId: string | null = null;
-  private requestId: string | null = null;
-  private documentType: string = "national-id";
-  private documentId: string = "";
   private modalElement: HTMLDivElement | null = null;
-  private backendUrl: string;
   private frontendUrl: string = "";
   private webAppUrl: string = "";
 
@@ -78,7 +73,6 @@ class SebeVerifySDK {
     }
     this.config = config;
     this.eventListeners = new Map();
-    this.backendUrl = config.backendUrl || "http://localhost:8000";
     if (typeof window !== "undefined") {
       this.frontendUrl = window.location.origin;
       this.webAppUrl = config.webAppUrl || this.frontendUrl;
@@ -122,76 +116,12 @@ class SebeVerifySDK {
     };
   }
 
-  private async createSession(): Promise<string> {
-    this.documentId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    const url = `${this.backendUrl}/projects/${this.config.projectId}/verification/session/start`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: this.getApiHeaders(),
-      body: JSON.stringify({
-        document_type: this.documentType,
-        document_id: this.documentId,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ detail: "Failed to create session" }));
-      throw new Error(
-        error.detail || `Failed to create session (${response.status})`,
-      );
-    }
-
-    const data = (await response.json()) as BackendSessionResponse;
-    this.sessionId = data.session_id;
-    return data.session_id;
+  private createSession(): string {
+    const sessionId = crypto.randomUUID();
+    this.sessionId = sessionId;
+    return sessionId;
   }
 
-  private async uploadDocument(
-    sessionId: string,
-    documentType: string,
-    documentId: string,
-    frontImage: Blob,
-    backImage: Blob | null,
-    selfieImage: Blob,
-  ): Promise<string> {
-    const url = `${this.backendUrl}/projects/${this.config.projectId}/verification/image`;
-
-    const formData = new FormData();
-    formData.append("session_id", sessionId);
-    formData.append("document_type", documentType);
-    formData.append("document_id", documentId);
-    formData.append("document_image", frontImage, "document_front.jpg");
-    formData.append("person_image", selfieImage, "selfie.jpg");
-
-    if (backImage) {
-      formData.append("document_image_back", backImage, "document_back.jpg");
-    }
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "X-API-Key": this.config.apiKey,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ detail: "Failed to upload document" }));
-      throw new Error(
-        error.detail || `Failed to upload document (${response.status})`,
-      );
-    }
-
-    const data = (await response.json()) as BackendUploadResponse;
-    this.requestId = data.request_id;
-    return data.request_id;
-  }
 
   private createModal(verificationUrl: string): void {
     if (this.modalElement) return;
@@ -276,9 +206,9 @@ class SebeVerifySDK {
     try {
       this.emit("started");
 
-      const sessionId = await this.createSession();
+      const sessionId = this.createSession();
 
-      const verificationUrl = `${this.webAppUrl}/verify/${sessionId}?returnUrl=${encodeURIComponent(this.config.redirectUrl)}&backendUrl=${encodeURIComponent(this.backendUrl)}&projectId=${encodeURIComponent(this.config.projectId)}&apiKey=${encodeURIComponent(this.config.apiKey)}`;
+      const verificationUrl = `${this.webAppUrl}/verify/${sessionId}?returnUrl=${encodeURIComponent(this.config.redirectUrl)}&projectId=${encodeURIComponent(this.config.projectId)}&apiKey=${encodeURIComponent(this.config.apiKey)}`;
 
       if (this.isMobile()) {
         window.location.href = verificationUrl;
@@ -296,7 +226,7 @@ class SebeVerifySDK {
     }
   }
 
-  async submitDocument(options: {
+  async submitDocument(_options: {
     frontImage: Blob;
     backImage?: Blob;
     selfieImage: Blob;
@@ -306,41 +236,15 @@ class SebeVerifySDK {
       throw new Error("No active session. Call start() first.");
     }
 
-    try {
-      const docType = options.documentType || this.documentType;
-
-      await this.uploadDocument(
-        this.sessionId,
-        docType,
-        this.documentId,
-        options.frontImage,
-        options.backImage || null,
-        options.selfieImage,
-      );
-
-      this.emit("success", {
-        sessionId: this.sessionId,
-        status: "submitted",
-        requestId: this.requestId || undefined,
-        submissionData: {
-          documentType: docType,
-          submittedAt: new Date().toISOString(),
-          message: "Document uploaded successfully",
-        },
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Upload failed";
-      this.emit("error", new Error(errorMessage));
-      throw error;
-    }
+    throw new Error(
+      "submitDocument() is not supported in this version. Use start() to open the verification flow — the SDK web app handles all backend communication.",
+    );
   }
 
   destroy(): void {
     this.closeModal();
     this.eventListeners.clear();
     this.sessionId = null;
-    this.requestId = null;
   }
 }
 

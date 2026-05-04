@@ -6,7 +6,6 @@
 export interface SebeVerifyConfig {
     apiKey: string;
     projectId: string;
-    backendUrl?: string;
     /** Public URL where the SebeVerify web app is hosted (serves /verify/[sessionId]) */
     webAppUrl?: string;
     redirectUrl: string;
@@ -31,11 +30,7 @@ declare class SebeVerifySDK {
     private config;
     private eventListeners;
     private sessionId;
-    private requestId;
-    private documentType;
-    private documentId;
     private modalElement;
-    private backendUrl;
     private frontendUrl;
     private webAppUrl;
     constructor(config: SebeVerifyConfig);
@@ -44,12 +39,11 @@ declare class SebeVerifySDK {
     private emit;
     private getApiHeaders;
     private createSession;
-    private uploadDocument;
     private createModal;
     private closeModal;
     private isMobile;
     start(): Promise<void>;
-    submitDocument(options: {
+    submitDocument(_options: {
         frontImage: Blob;
         backImage?: Blob;
         selfieImage: Blob;

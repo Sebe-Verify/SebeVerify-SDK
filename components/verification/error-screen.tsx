@@ -10,10 +10,11 @@ interface ErrorScreenProps {
 }
 
 export function ErrorScreen({ onRetry, onClose }: ErrorScreenProps) {
-  const { errorMessage, reset } = useVerificationStore()
+  const { errorMessage, errorDebug, resetFlow } = useVerificationStore()
 
   const handleRetry = () => {
-    reset()
+    // resetFlow keeps backendUrl/projectId/apiKey so project mode stays active
+    resetFlow()
     if (onRetry) {
       onRetry()
     }
@@ -72,6 +73,17 @@ export function ErrorScreen({ onRetry, onClose }: ErrorScreenProps) {
           </Button>
         )}
       </div>
+
+      {errorDebug && (
+        <details className="w-full max-w-sm mt-4">
+          <summary className="text-xs text-muted-foreground cursor-pointer select-none">
+            Show debug info
+          </summary>
+          <pre className="mt-2 p-3 rounded-lg bg-muted text-xs text-left whitespace-pre-wrap break-all border border-border overflow-auto max-h-48">
+            {errorDebug}
+          </pre>
+        </details>
+      )}
 
       <p className="text-xs text-center text-muted-foreground mt-6 max-w-xs">
         Need help? Contact support for assistance with verification.
