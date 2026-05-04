@@ -10,7 +10,6 @@ function readQuery() {
     return {
       session: null as string | null,
       returnUrl: null as string | null,
-      backendUrl: null as string | null,
       sessionToken: null as string | null,
       projectId: null as string | null,
       apiKey: null as string | null,
@@ -19,7 +18,6 @@ function readQuery() {
   return {
     session: params.get("session"),
     returnUrl: params.get("returnUrl") || params.get("return_url"),
-    backendUrl: params.get("backendUrl"),
     sessionToken: params.get("sessionToken"),
     projectId: params.get("projectId"),
     apiKey: params.get("apiKey"),
@@ -78,7 +76,6 @@ export function VerifyPageClient({
     const {
       session,
       returnUrl: r,
-      backendUrl,
       sessionToken,
       projectId,
       apiKey,
@@ -102,7 +99,6 @@ export function VerifyPageClient({
 
     if (sid) setSessionId(sid);
     setApiConfig({
-      backendUrl: backendUrl || undefined,
       sessionToken: sessionToken || undefined,
       projectId: projectId || undefined,
       apiKey: apiKey || undefined,

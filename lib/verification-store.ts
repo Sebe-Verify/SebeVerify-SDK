@@ -212,7 +212,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
     );
     // sid is NOT required — backendSessionId comes from session/start, not the URL session param
     const hasProjectMode = Boolean(
-      state.backendUrl && state.projectId && state.apiKey,
+      state.projectId && state.apiKey,
     );
 
     try {
@@ -259,7 +259,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         }
       } else if (hasProjectMode) {
         // hasProjectMode guarantees these are non-null
-        const backendUrl = state.backendUrl!;
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
         const projectId = state.projectId!;
         const apiKey = state.apiKey!;
 

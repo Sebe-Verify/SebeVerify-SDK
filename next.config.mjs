@@ -8,6 +8,7 @@ const nextConfig = {
     "192.168.1.4",
     "192.168.1.5",
     "172.21.96.1",
+    "zoe-unhappy-chasity.ngrok-free.dev",
   ],
   images: {
     unoptimized: true,
