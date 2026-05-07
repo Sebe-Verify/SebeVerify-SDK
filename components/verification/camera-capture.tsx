@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useCallback, useEffect } from "react"
+import { useRef, useState, useCallback, useEffect, type ReactNode } from "react"
 import { Camera, RotateCcw, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -23,7 +23,7 @@ interface CameraCaptureProps {
   onRetake?: () => void
   capturedImage?: string | null
   title: string
-  instructions: string
+  instructions: ReactNode
   overlayType?: "document" | "selfie"
   videoRef?: React.RefObject<HTMLVideoElement | null>
   hideControls?: boolean  // Used by liveness mode — hides the capture button entirely
