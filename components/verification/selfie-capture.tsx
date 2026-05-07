@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { Category, Matrix } from "@mediapipe/tasks-vision"
 import { CameraCapture } from "./camera-capture"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
@@ -94,24 +95,24 @@ export function SelfieCapture() {
       const results = landmarker.detectForVideo(video, performance.now());
 
       if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-        const shapes = results.faceBlendshapes[0].categories;
+        const shapes: Category[] = results.faceBlendshapes[0].categories;
         const currentChallenge = challenges[currentChallengeIndex];
         let passed = false;
 
         if (currentChallenge === "smile") {
-          const smileLeft = shapes.find((s: any) => s.categoryName === "mouthSmileLeft")?.score || 0;
-          const smileRight = shapes.find((s: any) => s.categoryName === "mouthSmileRight")?.score || 0;
+          const smileLeft = shapes.find((s) => s.categoryName === "mouthSmileLeft")?.score || 0;
+          const smileRight = shapes.find((s) => s.categoryName === "mouthSmileRight")?.score || 0;
           if (smileLeft > 0.5 && smileRight > 0.5) passed = true;
         }
         else if (currentChallenge === "blink") {
-          const blinkLeft = shapes.find((s: any) => s.categoryName === "eyeBlinkLeft")?.score || 0;
-          const blinkRight = shapes.find((s: any) => s.categoryName === "eyeBlinkRight")?.score || 0;
+          const blinkLeft = shapes.find((s) => s.categoryName === "eyeBlinkLeft")?.score || 0;
+          const blinkRight = shapes.find((s) => s.categoryName === "eyeBlinkRight")?.score || 0;
           if (blinkLeft > 0.4 && blinkRight > 0.4) passed = true;
         }
         else if (currentChallenge === "turn_head_left" || currentChallenge === "turn_head_right") {
           if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
-            const matrix: any = results.facialTransformationMatrixes[0];
-            const data = matrix.data || matrix;
+            const matrix: Matrix = results.facialTransformationMatrixes[0];
+            const data = matrix.data;
             const yaw = Math.atan2(-data[8], Math.sqrt(data[9] * data[9] + data[10] * data[10])) * 180 / Math.PI;
             if (currentChallenge === "turn_head_left" && yaw < -20) passed = true;
             if (currentChallenge === "turn_head_right" && yaw > 20) passed = true;

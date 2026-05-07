@@ -7,7 +7,6 @@ type Props = {
   searchParams: Promise<{
     returnUrl?: string;
     return_url?: string;
-    backendUrl?: string;
     projectId?: string;
     apiKey?: string;
   }>;
@@ -24,7 +23,6 @@ export default async function VerifySessionPage({
   const { qrCodeImageUrl, verifyPageUrl } = await buildVerifyPageUrls({
     sessionId,
     returnUrl: resolvedParams.returnUrl || resolvedParams.return_url,
-    backendUrl: resolvedParams.backendUrl,
     projectId: resolvedParams.projectId,
     apiKey: resolvedParams.apiKey,
   });

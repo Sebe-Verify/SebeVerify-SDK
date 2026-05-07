@@ -10,7 +10,6 @@ function readQuery() {
     return {
       session: null as string | null,
       returnUrl: null as string | null,
-      sessionToken: null as string | null,
       projectId: null as string | null,
       apiKey: null as string | null,
     };
@@ -18,7 +17,6 @@ function readQuery() {
   return {
     session: params.get("session"),
     returnUrl: params.get("returnUrl") || params.get("return_url"),
-    sessionToken: params.get("sessionToken"),
     projectId: params.get("projectId"),
     apiKey: params.get("apiKey"),
   };
@@ -76,7 +74,6 @@ export function VerifyPageClient({
     const {
       session,
       returnUrl: r,
-      sessionToken,
       projectId,
       apiKey,
     } = readQuery();
@@ -90,16 +87,10 @@ export function VerifyPageClient({
     // Only accept returnUrl values that are safe absolute HTTP/HTTPS URLs
     if (isValidReturnUrl(r)) {
       setReturnUrl(r);
-      console.log('[SebeVerify] ✅ Valid returnUrl set:', r);
-    } else if (r) {
-      console.warn("[SebeVerify] ❌ Ignoring invalid returnUrl:", r, "- must be absolute HTTP/HTTPS URL");
-    } else {
-      console.warn("[SebeVerify] ⚠️ No returnUrl provided - will use fallback redirect (history.back() or /)");
     }
 
     if (sid) setSessionId(sid);
     setApiConfig({
-      sessionToken: sessionToken || undefined,
       projectId: projectId || undefined,
       apiKey: apiKey || undefined,
     });

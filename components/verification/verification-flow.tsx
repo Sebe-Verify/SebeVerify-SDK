@@ -74,7 +74,7 @@ function VerificationFlowInner({
           <SubmittedScreen onComplete={onComplete} returnUrl={returnUrl} />
         );
       case "error":
-        return <ErrorScreen onRetry={() => {}} onClose={onClose} />;
+        return <ErrorScreen onClose={onClose} />;
       default:
         return (
           <IntroScreen

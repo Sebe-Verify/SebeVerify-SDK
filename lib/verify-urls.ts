@@ -41,7 +41,6 @@ function getLanHost(localhostWithPort: string): string {
 export async function buildVerifyPageUrls(options?: {
   sessionId?: string;
   returnUrl?: string;
-  backendUrl?: string;
   projectId?: string;
   apiKey?: string;
 }): Promise<VerifyPageUrls> {
@@ -76,7 +75,6 @@ export async function buildVerifyPageUrls(options?: {
   // Build query string once
   const queryParams = new URLSearchParams();
   if (options?.returnUrl) queryParams.set("returnUrl", options.returnUrl);
-  if (options?.backendUrl) queryParams.set("backendUrl", options.backendUrl);
   if (options?.projectId) queryParams.set("projectId", options.projectId);
   if (options?.apiKey) queryParams.set("apiKey", options.apiKey);
 

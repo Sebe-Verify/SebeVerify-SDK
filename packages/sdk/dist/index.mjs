@@ -1,42 +1,29 @@
-var p="https://sebe-verify-sdk-deploy-fork.vercel.app",c=class{config;eventListeners=new Map;sessionId=null;modalElement=null;webAppUrl;constructor(e){if(!e.apiKey)throw new Error("apiKey is required");if(!e.projectId)throw new Error("projectId is required");this.config=e,this.eventListeners=new Map,this.webAppUrl=(e.webAppUrl||p).replace(/\/$/,"")}on(e,t){return this.eventListeners.has(e)||this.eventListeners.set(e,[]),this.eventListeners.get(e).push(t),this}off(e,t){let s=this.eventListeners.get(e);if(s){let n=s.indexOf(t);n>-1&&s.splice(n,1)}return this}emit(e,t){(this.eventListeners.get(e)||[]).forEach(n=>{try{n(t)}catch(r){console.error(`Error in ${e} handler:`,r)}})}getApiHeaders(){return{"Content-Type":"application/json","X-API-Key":this.config.apiKey}}createSession(){let e=crypto.randomUUID();return this.sessionId=e,e}createModal(e){if(this.modalElement)return;let t=document.createElement("div");t.style.cssText=`
+var h="https://sebe-verify-sdk-deploy-fork.vercel.app";function y(r,e){let t;try{t=new URL(r)}catch{throw new Error(`${e} must be an absolute http(s) URL, got "${r}"`)}if(t.protocol!=="http:"&&t.protocol!=="https:")throw new Error(`${e} must be an http(s) URL, got "${t.protocol}"`)}function b(){if(typeof crypto<"u"&&typeof crypto.randomUUID=="function")return crypto.randomUUID();let r=new Uint8Array(16);if(typeof crypto<"u"&&typeof crypto.getRandomValues=="function")crypto.getRandomValues(r);else for(let t=0;t<16;t++)r[t]=Math.floor(Math.random()*256);r[6]=r[6]&15|64,r[8]=r[8]&63|128;let e=Array.from(r,t=>t.toString(16).padStart(2,"0")).join("");return`${e.slice(0,8)}-${e.slice(8,12)}-${e.slice(12,16)}-${e.slice(16,20)}-${e.slice(20)}`}var f=class{config;eventListeners=new Map;sessionId=null;modalElement=null;webAppUrl;constructor(e){if(!e.apiKey)throw new Error("apiKey is required");if(!e.projectId)throw new Error("projectId is required");if(!e.redirectUrl)throw new Error("redirectUrl is required");y(e.redirectUrl,"redirectUrl");let t=e.webAppUrl||h;y(t,"webAppUrl"),this.config=e,this.webAppUrl=t.replace(/\/$/,"")}on(e,t){return this.eventListeners.has(e)||this.eventListeners.set(e,[]),this.eventListeners.get(e).push(t),this}off(e,t){let n=this.eventListeners.get(e);if(n){let i=n.indexOf(t);i>-1&&n.splice(i,1)}return this}emit(e,t){(this.eventListeners.get(e)||[]).forEach(i=>{try{i(t)}catch(s){console.error(`Error in ${e} handler:`,s)}})}buildVerificationUrl(e){let t=new URLSearchParams({returnUrl:this.config.redirectUrl,projectId:this.config.projectId,apiKey:this.config.apiKey});return`${this.webAppUrl}/verify/${e}?${t.toString()}`}createModal(e){if(this.modalElement)return;let t=document.createElement("div");t.setAttribute("role","dialog"),t.setAttribute("aria-modal","true"),t.setAttribute("aria-labelledby","sebeverify-modal-title"),t.style.cssText=`
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.9); z-index: 9999;
       display: flex; align-items: center; justify-content: center;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    `;let s=document.createElement("div");s.style.cssText=`
+    `;let n=document.createElement("div");n.style.cssText=`
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       border-radius: 20px; padding: 40px;
       max-width: 420px; text-align: center; color: white;
       box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-    `,s.innerHTML=`
-      <div style="font-size: 56px; margin-bottom: 20px;">\u{1F512}</div>
-      <h2 style="margin: 0 0 12px; font-size: 24px; font-weight: 600;">Verification Ready</h2>
-      <p style="color: #9ca3af; margin: 0 0 32px; line-height: 1.5;">
-        Click below to complete your identity verification
-      </p>
-      <a href="${e}" style="
-        display: block;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        text-decoration: none;
-        padding: 16px 32px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 16px;
-        margin-bottom: 20px;
-      ">Start Verification</a>
-      <button id="sdk-cancel-btn" style="
-        background: transparent;
-        border: 1px solid #4b5563;
-        color: #9ca3af;
-        padding: 12px 24px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-      ">Cancel</button>
-      <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #374151;">
-        <p style="color: #6b7280; font-size: 12px; margin: 0;">
-          You'll be redirected to complete verification
-        </p>
-      </div>
-    `;let n=s.querySelector("#sdk-cancel-btn");n&&n.addEventListener("click",()=>{this.closeModal(),this.emit("cancelled")}),t.appendChild(s),document.body.appendChild(t),this.modalElement=t}closeModal(){this.modalElement&&(this.modalElement.remove(),this.modalElement=null)}isMobile(){return typeof window>"u"?!1:/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)}async start(){try{this.emit("started");let e=this.createSession(),t=`${this.webAppUrl}/verify/${e}?returnUrl=${encodeURIComponent(this.config.redirectUrl)}&projectId=${encodeURIComponent(this.config.projectId)}&apiKey=${encodeURIComponent(this.config.apiKey)}`;if(this.isMobile()){window.location.href=t,this.emit("mobile_opened");return}this.createModal(t)}catch(e){this.closeModal();let t=e instanceof Error?e.message:"Unknown error";throw this.emit("error",new Error(t)),e}}async submitDocument(e){throw this.sessionId?new Error("submitDocument() is not supported in this version. Use start() to open the verification flow \u2014 the SDK web app handles all backend communication."):new Error("No active session. Call start() first.")}destroy(){this.closeModal(),this.eventListeners.clear(),this.sessionId=null}};function l(i){return new c(i)}var a=new Map;async function f(i){let e=i.backendUrl||"http://localhost:8000",t=i.documentType||"national-id",s=i.documentId||`user_${Date.now()}_${Math.random().toString(36).slice(2,11)}`,n=`${e}/projects/${i.projectId}/verification/session/start`,r=await fetch(n,{method:"POST",headers:{"Content-Type":"application/json","X-API-Key":i.apiKey},body:JSON.stringify({document_type:t,document_id:s})});if(!r.ok){let o=await r.json().catch(()=>({detail:"Failed to create verification session"})),d=typeof o?.detail=="string"?o.detail:JSON.stringify(o?.detail??o);throw new Error(`${d||"Failed to create verification session"} (${r.status})`)}return{sessionId:(await r.json()).session_id,backendUrl:e,projectId:i.projectId}}function u(i){let e=`sess_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,t=i.backendUrl||"http://localhost:3000",s={success:!0,sessionId:e,status:"pending"};return a.set(e,s),{sessionId:e,verificationUrl:`${t}/verify/${e}`}}function m(i){if(!a.get(i.sessionId))return{success:!1,sessionId:i.sessionId,status:"rejected",message:"Session not found"};let t={success:!0,sessionId:i.sessionId,status:"approved",message:"Verification completed successfully",requestId:`req_${Date.now()}`,verifiedAt:new Date().toISOString()};return a.set(i.sessionId,t),t}function h(i){return a.get(i)||null}export{c as SebeVerifySDK,f as createVerificationSession,l as default,h as getVerificationStatus,u as initiateVerification,m as verifyUser};
+    `;let i=document.createElement("div");i.style.cssText="font-size: 56px; margin-bottom: 20px;",i.textContent="\u{1F512}";let s=document.createElement("h2");s.id="sebeverify-modal-title",s.style.cssText="margin: 0 0 12px; font-size: 24px; font-weight: 600;",s.textContent="Verification Ready";let o=document.createElement("p");o.style.cssText="color: #9ca3af; margin: 0 0 32px; line-height: 1.5;",o.textContent="Click below to complete your identity verification";let a=document.createElement("a");a.href=e,a.textContent="Start Verification",a.style.cssText=`
+      display: block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 20px;
+    `;let c=document.createElement("button");c.type="button",c.textContent="Cancel",c.style.cssText=`
+      background: transparent;
+      border: 1px solid #4b5563;
+      color: #9ca3af;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    `;let d=document.createElement("div");d.style.cssText="margin-top: 24px; padding-top: 24px; border-top: 1px solid #374151;";let l=document.createElement("p");l.style.cssText="color: #6b7280; font-size: 12px; margin: 0;",l.textContent="You'll be redirected to complete verification",d.appendChild(l),n.append(i,s,o,a,c,d),t.appendChild(n);let p=()=>{this.closeModal(),this.emit("cancelled")};c.addEventListener("click",p),t.addEventListener("click",u=>{u.target===t&&p()});let m=u=>{u.key==="Escape"&&p()};document.addEventListener("keydown",m),t.__cleanup=()=>{document.removeEventListener("keydown",m)},document.body.appendChild(t),this.modalElement=t}closeModal(){if(!this.modalElement)return;let e=this.modalElement.__cleanup;e&&e(),this.modalElement.remove(),this.modalElement=null}isMobile(){return typeof window>"u"?!1:/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)}async start(){try{this.emit("started");let e=b();this.sessionId=e;let t=this.buildVerificationUrl(e);if(this.isMobile()){window.location.href=t,this.emit("mobile_opened");return}this.createModal(t)}catch(e){this.closeModal();let t=e instanceof Error?e.message:"Unknown error";throw this.emit("error",new Error(t)),e}}destroy(){this.closeModal(),this.eventListeners.clear(),this.sessionId=null}};function g(r){return new f(r)}async function x(r){let e=r.documentType||"national-id",t=r.documentId||`user_${Date.now()}_${Math.random().toString(36).slice(2,11)}`,n=`${r.backendUrl}/projects/${r.projectId}/verification/session/start`,i=await fetch(n,{method:"POST",headers:{"Content-Type":"application/json","X-API-Key":r.apiKey},body:JSON.stringify({document_type:e,document_id:t})});if(!i.ok){let o=await i.json().catch(()=>({detail:"Failed to create verification session"})),a=typeof o?.detail=="string"?o.detail:JSON.stringify(o?.detail??o);throw new Error(`${a||"Failed to create verification session"} (${i.status})`)}return{sessionId:(await i.json()).session_id,backendUrl:r.backendUrl,projectId:r.projectId}}export{f as SebeVerifySDK,x as createVerificationSession,g as default};

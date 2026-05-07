@@ -6,7 +6,6 @@ type SearchParams = {
   session?: string
   returnUrl?: string
   return_url?: string
-  backendUrl?: string
   projectId?: string
   apiKey?: string
 }
@@ -22,7 +21,6 @@ export default async function VerifyPage({
   const { qrCodeImageUrl, verifyPageUrl } = await buildVerifyPageUrls({
     sessionId: params.session,
     returnUrl: params.returnUrl || params.return_url,
-    backendUrl: params.backendUrl,
     projectId: params.projectId,
     apiKey: params.apiKey,
   })
