@@ -6,7 +6,7 @@
 export interface SebeVerifyConfig {
     apiKey: string;
     projectId: string;
-    /** Public URL where the SebeVerify web app is hosted (serves /verify/[sessionId]) */
+    /** Override the SebeVerify-hosted web app URL (only needed for self-host / dev / staging) */
     webAppUrl?: string;
     redirectUrl: string;
     theme?: {
@@ -31,7 +31,6 @@ declare class SebeVerifySDK {
     private eventListeners;
     private sessionId;
     private modalElement;
-    private frontendUrl;
     private webAppUrl;
     constructor(config: SebeVerifyConfig);
     on(event: EventType, callback: EventCallback): this;

@@ -4,10 +4,12 @@
  * Compatible with SebeVerify Backend (real API)
  */
 
+const DEFAULT_WEB_APP_URL = "https://sebe-verify-sdk-deploy-fork.vercel.app";
+
 export interface SebeVerifyConfig {
   apiKey: string;
   projectId: string;
-  /** Public URL where the SebeVerify web app is hosted (serves /verify/[sessionId]) */
+  /** Override the SebeVerify-hosted web app URL (only needed for self-host / dev / staging) */
   webAppUrl?: string;
   redirectUrl: string;
   theme?: {
@@ -61,8 +63,7 @@ class SebeVerifySDK {
   private eventListeners: Map<EventType, EventCallback[]> = new Map();
   private sessionId: string | null = null;
   private modalElement: HTMLDivElement | null = null;
-  private frontendUrl: string = "";
-  private webAppUrl: string = "";
+  private webAppUrl: string;
 
   constructor(config: SebeVerifyConfig) {
     if (!config.apiKey) {
@@ -73,10 +74,7 @@ class SebeVerifySDK {
     }
     this.config = config;
     this.eventListeners = new Map();
-    if (typeof window !== "undefined") {
-      this.frontendUrl = window.location.origin;
-      this.webAppUrl = config.webAppUrl || this.frontendUrl;
-    }
+    this.webAppUrl = (config.webAppUrl || DEFAULT_WEB_APP_URL).replace(/\/$/, "");
   }
 
   on(event: EventType, callback: EventCallback): this {
