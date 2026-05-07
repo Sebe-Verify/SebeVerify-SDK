@@ -21,19 +21,12 @@ interface VerificationFlowProps {
   onComplete?: () => void;
   onClose?: () => void;
   returnUrl?: string;
-  /** When true (desktop UA), show QR + URL on intro so users can open the flow on a phone */
-  showHandoffQr?: boolean;
-  qrCodeImageUrl?: string;
-  verifyPageUrl?: string;
 }
 
 function VerificationFlowInner({
   onComplete,
   onClose,
   returnUrl,
-  showHandoffQr,
-  qrCodeImageUrl,
-  verifyPageUrl,
 }: VerificationFlowProps) {
   const currentStep = useVerificationStore((state) => state.currentStep);
   const { initLivenessEngine } = useLiveness();
@@ -48,13 +41,7 @@ function VerificationFlowInner({
   const renderStep = () => {
     switch (currentStep) {
       case "intro":
-        return (
-          <IntroScreen
-            showHandoffQr={showHandoffQr}
-            qrCodeImageUrl={qrCodeImageUrl}
-            verifyPageUrl={verifyPageUrl}
-          />
-        );
+        return <IntroScreen />;
       case "doc-select":
         return <DocumentTypeSelector />;
       case "id-camera-prep":
@@ -74,15 +61,9 @@ function VerificationFlowInner({
           <SubmittedScreen onComplete={onComplete} returnUrl={returnUrl} />
         );
       case "error":
-        return <ErrorScreen onRetry={() => {}} onClose={onClose} />;
+        return <ErrorScreen onClose={onClose} />;
       default:
-        return (
-          <IntroScreen
-            showHandoffQr={showHandoffQr}
-            qrCodeImageUrl={qrCodeImageUrl}
-            verifyPageUrl={verifyPageUrl}
-          />
-        );
+        return <IntroScreen />;
     }
   };
 

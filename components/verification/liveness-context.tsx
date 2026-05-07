@@ -1,10 +1,11 @@
 "use client"
 
-import React, { createContext, useContext, useEffect } from "react";
+import React, { createContext, useContext } from "react";
+import { FaceLandmarker } from "@mediapipe/tasks-vision";
 import { useMediaPipe } from "@/hooks/useMediaPipe";
 
 interface LivenessContextType {
-  landmarker: any;
+  landmarker: FaceLandmarker | null;
   isInitializing: boolean;
   error: Error | null;
   initLivenessEngine: () => Promise<void>;

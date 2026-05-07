@@ -3,7 +3,6 @@
 import { Check, RotateCcw, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useVerificationStore } from "@/lib/verification-store"
-import { cn } from "@/lib/utils"
 
 export function ReviewDocument() {
   const { documentType, frontImage, backImage, setStep, setFrontImage, setBackImage } = useVerificationStore()

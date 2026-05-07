@@ -5,20 +5,14 @@ import { Button } from "@/components/ui/button"
 import { useVerificationStore } from "@/lib/verification-store"
 
 interface ErrorScreenProps {
-  onRetry?: () => void
   onClose?: () => void
 }
 
-export function ErrorScreen({ onRetry, onClose }: ErrorScreenProps) {
+export function ErrorScreen({ onClose }: ErrorScreenProps) {
   const { errorMessage, errorDebug, resetFlow } = useVerificationStore()
 
-  const handleRetry = () => {
-    // resetFlow keeps backendUrl/projectId/apiKey so project mode stays active
-    resetFlow()
-    if (onRetry) {
-      onRetry()
-    }
-  }
+  // resetFlow preserves projectId/apiKey so project mode stays active on retry
+  const handleRetry = resetFlow
 
   const troubleshootingTips = [
     "Ensure your document is valid and not expired",

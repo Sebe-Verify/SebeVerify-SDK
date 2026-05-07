@@ -10,7 +10,7 @@ export function createSession(verificationBaseUrl: string): {
   sessionId: string
   verificationUrl: string
 } {
-  const sessionId = `sess_${Date.now()}`
+  const sessionId = `sess_${crypto.randomUUID()}`
   const createdAt = new Date().toISOString()
   const session: MockSession = {
     sessionId,
