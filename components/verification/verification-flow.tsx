@@ -31,12 +31,10 @@ function VerificationFlowInner({
   const currentStep = useVerificationStore((state) => state.currentStep);
   const { initLivenessEngine } = useLiveness();
 
-  // Eager Pre-loading: Start booting the AI as soon as the user starts the ID flow
+  // Start loading the WASM model immediately on mount so it's ready before the selfie step
   useEffect(() => {
-    if (["id-front", "id-back", "review"].includes(currentStep)) {
-      initLivenessEngine();
-    }
-  }, [currentStep, initLivenessEngine]);
+    void initLivenessEngine();
+  }, [initLivenessEngine]);
 
   const renderStep = () => {
     switch (currentStep) {
