@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useCallback, useEffect } from "react"
+import { useRef, useState, useCallback, useEffect, type ReactNode } from "react"
 import { Camera, RotateCcw, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -23,7 +23,7 @@ interface CameraCaptureProps {
   onRetake?: () => void
   capturedImage?: string | null
   title: string
-  instructions: string
+  instructions: ReactNode
   overlayType?: "document" | "selfie"
   videoRef?: React.RefObject<HTMLVideoElement | null>
   hideControls?: boolean  // Used by liveness mode — hides the capture button entirely
@@ -90,7 +90,7 @@ export function CameraCapture({
 
         let mediaStream: MediaStream | null = null
         let attempts = 0
-        let lastError: any = null
+        let lastError: unknown = null
         const maxAttempts = 6
 
         while (attempts < maxAttempts) {
@@ -103,12 +103,13 @@ export function CameraCapture({
               audio: false,
             })
             break // Success!
-          } catch (err: any) {
+          } catch (err) {
             lastError = err
+            const name = err instanceof Error ? err.name : ""
             if (
-              err.name === "NotReadableError" ||
-              err.name === "TrackStartError" ||
-              err.name === "AbortError"
+              name === "NotReadableError" ||
+              name === "TrackStartError" ||
+              name === "AbortError"
             ) {
               attempts++
             } else {
@@ -129,9 +130,9 @@ export function CameraCapture({
 
         activeGlobalStream = mediaStream;
         setStream(mediaStream)
-      } catch (err: any) {
-        const e = err
-        if (e.name === "AbortError" || e.message?.includes("Timeout")) {
+      } catch (err) {
+        const e = err instanceof Error ? err : new Error(String(err))
+        if (e.name === "AbortError" || e.message.includes("Timeout")) {
           setError("Camera took too long to start. Please close other apps using the camera and try again.")
         } else if (e.name === "NotAllowedError") {
           setError("Camera access was denied. Tap “Allow camera” again and choose Allow in the browser prompt, or enable camera in site settings.")

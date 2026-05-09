@@ -52,8 +52,6 @@ interface VerificationState {
   isSubmitting: boolean;
 
   // SDK config (set from verify page query params)
-  backendUrl: string | null;
-  sessionToken: string | null;
   projectId: string | null;
   apiKey: string | null;
 
@@ -74,8 +72,6 @@ interface VerificationState {
   setLivenessImages: (images: string[]) => void;
   setError: (message: string) => void;
   setApiConfig: (config: {
-    backendUrl?: string;
-    sessionToken?: string;
     projectId?: string;
     apiKey?: string;
   }) => void;
@@ -114,8 +110,6 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   errorMessage: null,
   errorDebug: null,
   isSubmitting: false,
-  backendUrl: null,
-  sessionToken: null,
   projectId: null,
   apiKey: null,
   documentId: null,
@@ -172,10 +166,8 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   setError: (message) =>
     set({ errorMessage: message, errorDebug: null, currentStep: "error", isSubmitting: false }),
 
-  setApiConfig: ({ backendUrl, sessionToken, projectId, apiKey }) => {
+  setApiConfig: ({ projectId, apiKey }) => {
     set({
-      backendUrl: backendUrl || null,
-      sessionToken: sessionToken || null,
       projectId: projectId || null,
       apiKey: apiKey || null,
     });
@@ -207,57 +199,10 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
     const state = get();
     let sid = state.sessionId;
 
-    const hasV1SessionMode = Boolean(
-      state.backendUrl && state.sessionToken && sid,
-    );
-    // sid is NOT required — backendSessionId comes from session/start, not the URL session param
-    const hasProjectMode = Boolean(
-      state.projectId && state.apiKey,
-    );
+    const hasProjectMode = Boolean(state.projectId && state.apiKey);
 
     try {
-      if (hasV1SessionMode && state.backendUrl && state.sessionToken && sid) {
-        const formData = buildFormData(
-          state,
-          BACKEND_DOC_TYPE[state.documentType ?? "national_id"],
-          state.documentId ?? crypto.randomUUID(),
-        );
-
-        const uploadRes = await fetch(
-          `${state.backendUrl}/v1/sessions/${sid}/upload`,
-          {
-            method: "POST",
-            headers: { "X-Session-Token": state.sessionToken },
-            body: formData,
-            signal,
-          },
-        );
-
-        if (!uploadRes.ok) {
-          throw new Error("Failed to upload images");
-        }
-
-        // Complete call sends only metadata — images were already uploaded above
-        const completeRes = await fetch(
-          `${state.backendUrl}/v1/sessions/${sid}/complete`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Session-Token": state.sessionToken,
-            },
-            body: JSON.stringify({
-              document_type: state.documentType || "national_id",
-              document_id: state.documentId ?? "ID-" + Date.now(),
-            }),
-            signal,
-          },
-        );
-
-        if (!completeRes.ok) {
-          throw new Error("Failed to complete session");
-        }
-      } else if (hasProjectMode) {
+      if (hasProjectMode) {
         // hasProjectMode guarantees these are non-null
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
         const projectId = state.projectId!;
@@ -271,7 +216,6 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         const docId = state.documentId ?? crypto.randomUUID();
 
         // 1. Create a backend verification session (required before image upload)
-        console.log("[SebeVerify] Starting session…", { backendUrl, projectId, backendDocType });
         const sessionRes = await fetch(
           `${backendUrl}/projects/${projectId}/verification/session/start`,
           {
@@ -295,7 +239,6 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
           session_id: string;
         };
         set({ backendSessionId });
-        console.log("[SebeVerify] Session created:", backendSessionId);
 
         // 2. Upload images + liveness frames
         let formData: FormData;
@@ -307,12 +250,6 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
           );
         }
         formData.append("session_id", backendSessionId);
-        console.log(
-          "[SebeVerify] Uploading images… front=%s selfie=%s liveness=%d",
-          state.frontImage ? "✓" : "✗",
-          state.selfieImage ? "✓" : "✗",
-          state.livenessImages.length,
-        );
 
         const uploadUrl = `${backendUrl}/projects/${projectId}/verification/image`;
         let submitRes: Response;
@@ -346,7 +283,6 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
           request_id: string;
         };
         set({ requestId });
-        console.log("[SebeVerify] Upload accepted, request_id:", requestId);
 
         // 3. Poll until the backend finishes processing (max 60 s)
         const maxAttempts = 30;
@@ -361,15 +297,22 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
             );
             if (statusRes.ok) {
               const statusData = (await statusRes.json()) as { result_ready: boolean };
-              console.log("[SebeVerify] Poll attempt", attempt + 1, "— result_ready:", statusData.result_ready);
               if (statusData.result_ready) break;
+            } else if (statusRes.status >= 400 && statusRes.status < 500) {
+              // 4xx is permanent — bad key, unknown request_id, etc. No point retrying.
+              const body = await statusRes.text();
+              throw new Error(`status poll ${statusRes.status}: ${body}`);
             }
+            // 5xx and network blips fall through to the next attempt
           } catch (pollErr) {
             if ((pollErr as Error).name === "AbortError") break;
+            // Re-throw 4xx so the user sees the real error instead of waiting 60s
+            if (pollErr instanceof Error && pollErr.message.startsWith("status poll ")) {
+              throw pollErr;
+            }
             // transient network error — keep polling
           }
         }
-        console.log("[SebeVerify] Verification complete");
       } else {
         // Mock mode — local dev only
         try {
@@ -398,7 +341,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         }
       }
 
-      // Brief pause for mock / V1 session modes; project mode already waited during polling
+      // Brief pause for mock mode; project mode already waited during polling
       if (!hasProjectMode) {
         await new Promise<void>((resolve) =>
           setTimeout(resolve, state.sessionId ? 400 : 2000),
@@ -443,8 +386,6 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       errorMessage: null,
       errorDebug: null,
       isSubmitting: false,
-      backendUrl: null,
-      sessionToken: null,
       projectId: null,
       apiKey: null,
       documentId: null,
@@ -454,7 +395,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
   },
 
   // Partial reset — clears captured images and flow state but keeps the API config
-  // (backendUrl, projectId, apiKey, sessionId) so a retry within the same session
+  // (projectId, apiKey, sessionId) so a retry within the same session
   // stays in project mode instead of falling through to mock mode.
   resetFlow: () => {
     submissionAbortController?.abort();
@@ -473,10 +414,8 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       documentId: null,
       backendSessionId: null,
       requestId: null,
-      // Preserve: sessionId, backendUrl, sessionToken, projectId, apiKey
+      // Preserve: sessionId, projectId, apiKey
       sessionId: s.sessionId,
-      backendUrl: s.backendUrl,
-      sessionToken: s.sessionToken,
       projectId: s.projectId,
       apiKey: s.apiKey,
     }));

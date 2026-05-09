@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/setup-mediapipe.mjs && next build",
-    "build:sdk": "pnpm --filter @sebeverify/web-sdk build",
+    "build:sdk": "pnpm --filter sebeverify-sdk build",
     "start": "next start",
     "lint": "eslint .",
     "postinstall": "node scripts/setup-mediapipe.mjs"

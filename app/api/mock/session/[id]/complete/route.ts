@@ -9,7 +9,7 @@ export async function POST(_request: NextRequest, { params }: RouteCtx) {
   const { id } = await params
 
   const session = getSession(id)
-  if (session) {
+  if (session && process.env.NODE_ENV === "development") {
     try {
       const dataDir = path.join(process.cwd(), "document_data", id)
       await fs.mkdir(dataDir, { recursive: true })

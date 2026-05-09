@@ -1,19 +1,17 @@
 /**
  * SebeVerify Web SDK
  * Embeddable identity verification SDK for merchants
- * Compatible with SebeVerify Backend (real API)
  */
+
+const DEFAULT_WEB_APP_URL = "https://sebe-verify-sdk-deploy-fork.vercel.app";
 
 export interface SebeVerifyConfig {
   apiKey: string;
   projectId: string;
-  /** Public URL where the SebeVerify web app is hosted (serves /verify/[sessionId]) */
-  webAppUrl?: string;
+  /** Where to send the user after verification finishes (absolute http/https URL) */
   redirectUrl: string;
-  theme?: {
-    primaryColor?: string;
-    borderRadius?: string;
-  };
+  /** Override the SebeVerify-hosted web app URL (only needed for self-host / dev / staging) */
+  webAppUrl?: string;
 }
 
 export interface SebeVerifyResult {
@@ -27,33 +25,36 @@ export interface SebeVerifyResult {
   requestId?: string;
 }
 
-type EventType =
-  | "started"
-  | "mobile_opened"
-  | "success"
-  | "error"
-  | "cancelled"
-  | "pending";
+type EventType = "started" | "mobile_opened" | "error" | "cancelled";
 type EventCallback = (data?: SebeVerifyResult | Error) => void;
 
-interface BackendSessionResponse {
-  session_id: string;
-  project_id: string;
-  document_type: string;
-  document_id: string;
-  expires_at: string;
-  max_attempts: number;
-  remaining_attempts: number;
-  recovered: boolean;
+function assertAbsoluteHttpUrl(value: string, field: string): void {
+  let u: URL;
+  try {
+    u = new URL(value);
+  } catch {
+    throw new Error(`${field} must be an absolute http(s) URL, got "${value}"`);
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new Error(`${field} must be an http(s) URL, got "${u.protocol}"`);
+  }
 }
 
-interface BackendUploadResponse {
-  request_id: string;
-  project_id: string;
-  document_type: string;
-  document_id: string;
-  status: string;
-  token_balance: number;
+function generateUuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // RFC4122 v4 fallback for browsers without crypto.randomUUID (Safari < 15.4)
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 class SebeVerifySDK {
@@ -61,22 +62,19 @@ class SebeVerifySDK {
   private eventListeners: Map<EventType, EventCallback[]> = new Map();
   private sessionId: string | null = null;
   private modalElement: HTMLDivElement | null = null;
-  private frontendUrl: string = "";
-  private webAppUrl: string = "";
+  private webAppUrl: string;
 
   constructor(config: SebeVerifyConfig) {
-    if (!config.apiKey) {
-      throw new Error("apiKey is required");
-    }
-    if (!config.projectId) {
-      throw new Error("projectId is required");
-    }
+    if (!config.apiKey) throw new Error("apiKey is required");
+    if (!config.projectId) throw new Error("projectId is required");
+    if (!config.redirectUrl) throw new Error("redirectUrl is required");
+    assertAbsoluteHttpUrl(config.redirectUrl, "redirectUrl");
+
+    const webAppUrl = config.webAppUrl || DEFAULT_WEB_APP_URL;
+    assertAbsoluteHttpUrl(webAppUrl, "webAppUrl");
+
     this.config = config;
-    this.eventListeners = new Map();
-    if (typeof window !== "undefined") {
-      this.frontendUrl = window.location.origin;
-      this.webAppUrl = config.webAppUrl || this.frontendUrl;
-    }
+    this.webAppUrl = webAppUrl.replace(/\/$/, "");
   }
 
   on(event: EventType, callback: EventCallback): this {
@@ -91,9 +89,7 @@ class SebeVerifySDK {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
       const index = listeners.indexOf(callback);
-      if (index > -1) {
-        listeners.splice(index, 1);
-      }
+      if (index > -1) listeners.splice(index, 1);
     }
     return this;
   }
@@ -109,24 +105,22 @@ class SebeVerifySDK {
     });
   }
 
-  private getApiHeaders(): Record<string, string> {
-    return {
-      "Content-Type": "application/json",
-      "X-API-Key": this.config.apiKey,
-    };
+  private buildVerificationUrl(sessionId: string): string {
+    const qs = new URLSearchParams({
+      returnUrl: this.config.redirectUrl,
+      projectId: this.config.projectId,
+      apiKey: this.config.apiKey,
+    });
+    return `${this.webAppUrl}/verify/${sessionId}?${qs.toString()}`;
   }
-
-  private createSession(): string {
-    const sessionId = crypto.randomUUID();
-    this.sessionId = sessionId;
-    return sessionId;
-  }
-
 
   private createModal(verificationUrl: string): void {
     if (this.modalElement) return;
 
     const overlay = document.createElement("div");
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "sebeverify-modal-title");
     overlay.style.cssText = `
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.9); z-index: 9999;
@@ -142,57 +136,84 @@ class SebeVerifySDK {
       box-shadow: 0 25px 50px rgba(0,0,0,0.5);
     `;
 
-    container.innerHTML = `
-      <div style="font-size: 56px; margin-bottom: 20px;">🔒</div>
-      <h2 style="margin: 0 0 12px; font-size: 24px; font-weight: 600;">Verification Ready</h2>
-      <p style="color: #9ca3af; margin: 0 0 32px; line-height: 1.5;">
-        Click below to complete your identity verification
-      </p>
-      <a href="${verificationUrl}" style="
-        display: block;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        text-decoration: none;
-        padding: 16px 32px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 16px;
-        margin-bottom: 20px;
-      ">Start Verification</a>
-      <button id="sdk-cancel-btn" style="
-        background: transparent;
-        border: 1px solid #4b5563;
-        color: #9ca3af;
-        padding: 12px 24px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-      ">Cancel</button>
-      <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #374151;">
-        <p style="color: #6b7280; font-size: 12px; margin: 0;">
-          You'll be redirected to complete verification
-        </p>
-      </div>
+    const icon = document.createElement("div");
+    icon.style.cssText = "font-size: 56px; margin-bottom: 20px;";
+    icon.textContent = "🔒";
+
+    const title = document.createElement("h2");
+    title.id = "sebeverify-modal-title";
+    title.style.cssText = "margin: 0 0 12px; font-size: 24px; font-weight: 600;";
+    title.textContent = "Verification Ready";
+
+    const description = document.createElement("p");
+    description.style.cssText = "color: #9ca3af; margin: 0 0 32px; line-height: 1.5;";
+    description.textContent = "Click below to complete your identity verification";
+
+    const startLink = document.createElement("a");
+    startLink.href = verificationUrl;
+    startLink.textContent = "Start Verification";
+    startLink.style.cssText = `
+      display: block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 20px;
     `;
 
-    const cancelBtn = container.querySelector("#sdk-cancel-btn");
-    if (cancelBtn) {
-      cancelBtn.addEventListener("click", () => {
-        this.closeModal();
-        this.emit("cancelled");
-      });
-    }
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.style.cssText = `
+      background: transparent;
+      border: 1px solid #4b5563;
+      color: #9ca3af;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    `;
 
+    const footer = document.createElement("div");
+    footer.style.cssText = "margin-top: 24px; padding-top: 24px; border-top: 1px solid #374151;";
+    const footerText = document.createElement("p");
+    footerText.style.cssText = "color: #6b7280; font-size: 12px; margin: 0;";
+    footerText.textContent = "You'll be redirected to complete verification";
+    footer.appendChild(footerText);
+
+    container.append(icon, title, description, startLink, cancelBtn, footer);
     overlay.appendChild(container);
+
+    const close = () => {
+      this.closeModal();
+      this.emit("cancelled");
+    };
+
+    cancelBtn.addEventListener("click", close);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onKeydown);
+    (overlay as HTMLDivElement & { __cleanup?: () => void }).__cleanup = () => {
+      document.removeEventListener("keydown", onKeydown);
+    };
+
     document.body.appendChild(overlay);
     this.modalElement = overlay;
   }
 
   private closeModal(): void {
-    if (this.modalElement) {
-      this.modalElement.remove();
-      this.modalElement = null;
-    }
+    if (!this.modalElement) return;
+    const cleanup = (this.modalElement as HTMLDivElement & { __cleanup?: () => void }).__cleanup;
+    if (cleanup) cleanup();
+    this.modalElement.remove();
+    this.modalElement = null;
   }
 
   private isMobile(): boolean {
@@ -206,9 +227,10 @@ class SebeVerifySDK {
     try {
       this.emit("started");
 
-      const sessionId = this.createSession();
+      const sessionId = generateUuid();
+      this.sessionId = sessionId;
 
-      const verificationUrl = `${this.webAppUrl}/verify/${sessionId}?returnUrl=${encodeURIComponent(this.config.redirectUrl)}&projectId=${encodeURIComponent(this.config.projectId)}&apiKey=${encodeURIComponent(this.config.apiKey)}`;
+      const verificationUrl = this.buildVerificationUrl(sessionId);
 
       if (this.isMobile()) {
         window.location.href = verificationUrl;
@@ -219,26 +241,10 @@ class SebeVerifySDK {
       this.createModal(verificationUrl);
     } catch (error) {
       this.closeModal();
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       this.emit("error", new Error(errorMessage));
       throw error;
     }
-  }
-
-  async submitDocument(_options: {
-    frontImage: Blob;
-    backImage?: Blob;
-    selfieImage: Blob;
-    documentType?: string;
-  }): Promise<void> {
-    if (!this.sessionId) {
-      throw new Error("No active session. Call start() first.");
-    }
-
-    throw new Error(
-      "submitDocument() is not supported in this version. Use start() to open the verification flow — the SDK web app handles all backend communication.",
-    );
   }
 
   destroy(): void {
@@ -255,32 +261,14 @@ export default function init(config: SebeVerifyConfig): SebeVerifySDK {
 export { SebeVerifySDK };
 
 /**
- * Server-side verification functions for use in Next.js API routes.
- * These functions handle verification logic on the server.
+ * Optional server-side helper for Next.js API routes that want to bootstrap a
+ * backend session before redirecting the user. Most merchants don't need this —
+ * the embedded SDK handles session creation automatically.
  */
-
-export interface VerificationRequest {
-  sessionId: string;
-  documentType?: string;
-  documentId?: string;
-  frontImage?: string;
-  backImage?: string;
-  selfieImage?: string;
-}
-
-export interface VerificationResponse {
-  success: boolean;
-  sessionId: string;
-  status: "pending" | "approved" | "rejected";
-  message?: string;
-  requestId?: string;
-  verifiedAt?: string;
-}
-
 export interface CreateVerificationSessionOptions {
   apiKey: string;
   projectId: string;
-  backendUrl?: string;
+  backendUrl: string;
   documentType?: string;
   documentId?: string;
 }
@@ -291,21 +279,15 @@ export interface CreateVerificationSessionResult {
   projectId: string;
 }
 
-const verificationSessions = new Map<string, VerificationResponse>();
-
-/**
- * Creates a real verification session on SebeVerify backend.
- */
 export async function createVerificationSession(
   config: CreateVerificationSessionOptions,
 ): Promise<CreateVerificationSessionResult> {
-  const backendUrl = config.backendUrl || "http://localhost:8000";
   const documentType = config.documentType || "national-id";
   const documentId =
     config.documentId ||
     `user_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-  const url = `${backendUrl}/projects/${config.projectId}/verification/session/start`;
+  const url = `${config.backendUrl}/projects/${config.projectId}/verification/session/start`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -336,67 +318,7 @@ export async function createVerificationSession(
 
   return {
     sessionId: data.session_id,
-    backendUrl,
+    backendUrl: config.backendUrl,
     projectId: config.projectId,
   };
-}
-
-/**
- * Legacy in-memory helper kept for backwards compatibility.
- */
-export function initiateVerification(config: {
-  apiKey: string;
-  projectId: string;
-  backendUrl?: string;
-}): {
-  sessionId: string;
-  verificationUrl: string;
-} {
-  const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const baseUrl = config.backendUrl || "http://localhost:3000";
-
-  const response: VerificationResponse = {
-    success: true,
-    sessionId,
-    status: "pending",
-  };
-
-  verificationSessions.set(sessionId, response);
-
-  return {
-    sessionId,
-    verificationUrl: `${baseUrl}/verify/${sessionId}`,
-  };
-}
-
-export function verifyUser(request: VerificationRequest): VerificationResponse {
-  const session = verificationSessions.get(request.sessionId);
-
-  if (!session) {
-    return {
-      success: false,
-      sessionId: request.sessionId,
-      status: "rejected",
-      message: "Session not found",
-    };
-  }
-
-  const updated: VerificationResponse = {
-    success: true,
-    sessionId: request.sessionId,
-    status: "approved",
-    message: "Verification completed successfully",
-    requestId: `req_${Date.now()}`,
-    verifiedAt: new Date().toISOString(),
-  };
-
-  verificationSessions.set(request.sessionId, updated);
-
-  return updated;
-}
-
-export function getVerificationStatus(
-  sessionId: string,
-): VerificationResponse | null {
-  return verificationSessions.get(sessionId) || null;
 }

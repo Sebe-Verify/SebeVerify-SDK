@@ -10,32 +10,17 @@ interface SubmittedScreenProps {
 }
 
 export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps) {
-  const { documentType, submittedAt, reset } = useVerificationStore()
+  const { documentType, submittedAt } = useVerificationStore()
 
   const handleDone = () => {
-    console.log('[SebeVerify] Done clicked', { hasOnComplete: !!onComplete, hasReturnUrl: !!returnUrl, returnUrl });
     if (onComplete) {
       onComplete();
     } else if (returnUrl) {
-      console.log('[SebeVerify] Redirecting to returnUrl:', returnUrl);
-      try {
-        window.location.href = returnUrl;
-      } catch (error) {
-        console.error('[SebeVerify] Redirect failed:', error);
-        // Fallback: try opening in new tab if same-tab redirect fails
-        if (confirm('Redirect failed. Open in new tab instead?')) {
-          window.open(returnUrl, '_blank');
-        }
-      }
+      window.location.href = returnUrl;
+    } else if (window.history.length > 1) {
+      window.history.back();
     } else {
-      console.warn('[SebeVerify] No returnUrl or onComplete handler available');
-      if (window.history.length > 1) {
-        console.log('[SebeVerify] Attempting history.back()');
-        window.history.back();
-      } else {
-        console.log('[SebeVerify] No history, redirecting to root');
-        window.location.href = '/';
-      }
+      window.location.href = '/';
     }
   }
 

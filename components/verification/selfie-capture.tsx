@@ -1,19 +1,20 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
+import { Category, Matrix } from "@mediapipe/tasks-vision"
 import { CameraCapture } from "./camera-capture"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
-import { Loader2, CheckCircle2 } from "lucide-react"
+import { Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight } from "lucide-react"
 
 type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right";
 const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"];
 
-const CHALLENGE_LABELS: Record<ChallengeType, string> = {
-  smile: "😊 Smile!",
-  blink: "👁️ Blink both eyes!",
-  turn_head_left: "⬅️ Turn head left",
-  turn_head_right: "➡️ Turn head right",
+const CHALLENGE_LABELS: Record<ChallengeType, ReactNode> = {
+  smile:           <span className="flex items-center gap-2"><SmilePlus className="w-4 h-4 shrink-0" /> Smile!</span>,
+  blink:           <span className="flex items-center gap-2"><Eye       className="w-4 h-4 shrink-0" /> Blink both eyes!</span>,
+  turn_head_left:  <span className="flex items-center gap-2"><ArrowLeft className="w-4 h-4 shrink-0" /> Turn head left</span>,
+  turn_head_right: <span className="flex items-center gap-2"><ArrowRight className="w-4 h-4 shrink-0" /> Turn head right</span>,
 }
 
 export function SelfieCapture() {
@@ -94,24 +95,24 @@ export function SelfieCapture() {
       const results = landmarker.detectForVideo(video, performance.now());
 
       if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-        const shapes = results.faceBlendshapes[0].categories;
+        const shapes: Category[] = results.faceBlendshapes[0].categories;
         const currentChallenge = challenges[currentChallengeIndex];
         let passed = false;
 
         if (currentChallenge === "smile") {
-          const smileLeft = shapes.find((s: any) => s.categoryName === "mouthSmileLeft")?.score || 0;
-          const smileRight = shapes.find((s: any) => s.categoryName === "mouthSmileRight")?.score || 0;
+          const smileLeft = shapes.find((s) => s.categoryName === "mouthSmileLeft")?.score || 0;
+          const smileRight = shapes.find((s) => s.categoryName === "mouthSmileRight")?.score || 0;
           if (smileLeft > 0.5 && smileRight > 0.5) passed = true;
         }
         else if (currentChallenge === "blink") {
-          const blinkLeft = shapes.find((s: any) => s.categoryName === "eyeBlinkLeft")?.score || 0;
-          const blinkRight = shapes.find((s: any) => s.categoryName === "eyeBlinkRight")?.score || 0;
+          const blinkLeft = shapes.find((s) => s.categoryName === "eyeBlinkLeft")?.score || 0;
+          const blinkRight = shapes.find((s) => s.categoryName === "eyeBlinkRight")?.score || 0;
           if (blinkLeft > 0.4 && blinkRight > 0.4) passed = true;
         }
         else if (currentChallenge === "turn_head_left" || currentChallenge === "turn_head_right") {
           if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
-            const matrix: any = results.facialTransformationMatrixes[0];
-            const data = matrix.data || matrix;
+            const matrix: Matrix = results.facialTransformationMatrixes[0];
+            const data = matrix.data;
             const yaw = Math.atan2(-data[8], Math.sqrt(data[9] * data[9] + data[10] * data[10])) * 180 / Math.PI;
             if (currentChallenge === "turn_head_left" && yaw < -20) passed = true;
             if (currentChallenge === "turn_head_right" && yaw > 20) passed = true;
@@ -179,17 +180,17 @@ export function SelfieCapture() {
   }, [landmarker, livenessPassed]);
 
   const completedCount = currentChallengeIndex;
-  const currentLabel = challenges[currentChallengeIndex]
+  const currentLabel: ReactNode = challenges[currentChallengeIndex]
     ? CHALLENGE_LABELS[challenges[currentChallengeIndex]]
-    : "";
+    : "Preparing camera…";
 
-  const instructions = isInitializing
+  const instructions: ReactNode = isInitializing
     ? "Loading face detection… This may take up to a minute on a slow connection."
     : mpError
     ? `Face detection could not start: ${mpError.message}`
     : livenessPassed
     ? "Liveness check completed!"
-    : currentLabel || "Preparing camera…"
+    : currentLabel
 
   return (
     <div className="flex flex-col flex-1 relative">
