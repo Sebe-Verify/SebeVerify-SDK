@@ -3,7 +3,7 @@
  * Embeddable identity verification SDK for merchants
  */
 
-const DEFAULT_WEB_APP_URL = "https://sebe-verify-sdk-deploy-fork.vercel.app";
+const DEFAULT_WEB_APP_URL = "https://sebe-verify-sdk.vercel.app";
 
 export interface SebeVerifyConfig {
   apiKey: string;
