@@ -16,19 +16,41 @@ const TARGET_FPS = 10
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS
 const STABILITY_MS = 400
 
+// Sobel kernels for edge detection
+const KX = [-1, 0, 1, -2, 0, 2, -1, 0, 1]
+const KY = [-1, -2, -1, 0, 0, 0, 1, 2, 1]
+
+function sobelEdgeStrength(pixels: Uint8ClampedArray, w: number, h: number): Float32Array {
+  const out = new Float32Array(w * h)
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      let gx = 0, gy = 0
+      for (let ky = -1; ky <= 1; ky++) {
+        for (let kx = -1; kx <= 1; kx++) {
+          const idx = ((y + ky) * w + (x + kx)) * 4
+          const gray = pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114
+          const ki = (ky + 1) * 3 + (kx + 1)
+          gx += gray * KX[ki]
+          gy += gray * KY[ki]
+        }
+      }
+      out[y * w + x] = Math.sqrt(gx * gx + gy * gy)
+    }
+  }
+  return out
+}
+
 /**
- * Detection algorithm: foreground-vs-background luminance contrast.
+ * Detection algorithm: Sobel edges concentrated at the guide perimeter.
  *
- * Reasoning: a document filling the guide will have a different average luminance
- * from the background visible at the corners of the analysis canvas (outside the guide).
- * This works for documents of any color against any background — we don't need to detect
- * "edges" or specific shapes. We just check that:
+ * Now that the camera streams at 1920×1080 with continuous autofocus, edges are
+ * sharp enough that this classical approach works reliably. We require:
  *
- *   1. The guide interior has a meaningfully different average luminance than the outside.
- *   2. The guide interior has enough texture (non-trivial variance) — rules out a hand or
- *      uniform color filling the frame.
- *
- * This is far more robust than Sobel-based edge detection on low-quality phone video.
+ *   1. Each of the four guide sides (top/bottom/left/right) has enough strong
+ *      edge pixels in its outer band — the document's border is sitting there.
+ *   2. The outer-band edge density is meaningfully greater than the inner-area
+ *      edge density — rules out a smaller floating document or pure background clutter.
+ *   3. Center region has texture (variance) — rules out a hand or uniform surface.
  */
 function checkDocument(
   pixels: Uint8ClampedArray,
@@ -36,12 +58,13 @@ function checkDocument(
   h: number,
   aspectRatio: number
 ): boolean {
-  // Slightly smaller than the on-screen overlay so we have enough background
-  // pixels around it for a reliable foreground/background contrast comparison.
+  const edges = sobelEdgeStrength(pixels, w, h)
+  const threshold = 60
+
+  // Guide zone, clamped so it always fits the analysis canvas
   const isPortrait = aspectRatio < 1
-  let gw = isPortrait ? Math.round(Math.min(w, h) * 0.65 * aspectRatio) : Math.round(w * 0.7)
+  let gw = isPortrait ? Math.round(Math.min(w, h) * 0.75 * aspectRatio) : Math.round(w * 0.85)
   let gh = Math.round(gw / aspectRatio)
-  // Clamp so the guide always fits inside the analysis canvas with room for a background ring
   if (gh > h * 0.85) {
     gh = Math.round(h * 0.85)
     gw = Math.round(gh * aspectRatio)
@@ -53,50 +76,81 @@ function checkDocument(
   const gx = Math.round((w - gw) / 2)
   const gy = Math.round((h - gh) / 2)
 
-  // Background sample = pixels OUTSIDE the guide (the surrounding visible area)
-  // Foreground sample = inner 70% of the guide (avoid the document's own border)
-  const fxStart = gx + Math.round(gw * 0.15)
-  const fxEnd   = gx + Math.round(gw * 0.85)
-  const fyStart = gy + Math.round(gh * 0.15)
-  const fyEnd   = gy + Math.round(gh * 0.85)
+  // Outer band where the document edge should sit (12% inward from guide border)
+  const outerV = Math.max(3, Math.round(gh * 0.12))
+  const outerH = Math.max(3, Math.round(gw * 0.12))
 
-  let fgSum = 0, fgSumSq = 0, fgCount = 0
-  let bgSum = 0, bgCount = 0
+  // Inner band — where a smaller floating document would show its edges instead
+  const innerStartV = Math.round(gh * 0.20)
+  const innerEndV   = Math.round(gh * 0.40)
+  const innerStartH = Math.round(gw * 0.20)
+  const innerEndH   = Math.round(gw * 0.40)
 
-  // Stride of 2 — every other pixel is plenty at 320×200 and halves the work
-  const stride = 2
+  let outTop = 0, outBottom = 0, outLeft = 0, outRight = 0
+  let outTopN = 0, outBottomN = 0, outLeftN = 0, outRightN = 0
+  let inTop = 0, inBottom = 0, inLeft = 0, inRight = 0
+  let inTopN = 0, inBottomN = 0, inLeftN = 0, inRightN = 0
 
-  for (let py = 0; py < h; py += stride) {
-    for (let px = 0; px < w; px += stride) {
-      const idx = (py * w + px) * 4
-      const lum = pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114
+  for (let py = gy; py < gy + gh; py++) {
+    for (let px = gx; px < gx + gw; px++) {
+      const strong = edges[py * w + px] > threshold
+      const dT = py - gy
+      const dB = (gy + gh - 1) - py
+      const dL = px - gx
+      const dR = (gx + gw - 1) - px
 
-      const inGuide = px >= gx && px < gx + gw && py >= gy && py < gy + gh
+      if (dT < outerV)    { outTopN++;    if (strong) outTop++ }
+      if (dB < outerV)    { outBottomN++; if (strong) outBottom++ }
+      if (dL < outerH)    { outLeftN++;   if (strong) outLeft++ }
+      if (dR < outerH)    { outRightN++;  if (strong) outRight++ }
 
-      if (!inGuide) {
-        bgSum += lum
-        bgCount++
-      } else if (px >= fxStart && px < fxEnd && py >= fyStart && py < fyEnd) {
-        fgSum += lum
-        fgSumSq += lum * lum
-        fgCount++
-      }
+      if (dT >= innerStartV && dT < innerEndV) { inTopN++;    if (strong) inTop++ }
+      if (dB >= innerStartV && dB < innerEndV) { inBottomN++; if (strong) inBottom++ }
+      if (dL >= innerStartH && dL < innerEndH) { inLeftN++;   if (strong) inLeft++ }
+      if (dR >= innerStartH && dR < innerEndH) { inRightN++;  if (strong) inRight++ }
     }
   }
 
-  if (fgCount === 0 || bgCount === 0) return false
+  const outerTopD    = outTopN    ? outTop    / outTopN    : 0
+  const outerBottomD = outBottomN ? outBottom / outBottomN : 0
+  const outerLeftD   = outLeftN   ? outLeft   / outLeftN   : 0
+  const outerRightD  = outRightN  ? outRight  / outRightN  : 0
 
-  const fgMean = fgSum / fgCount
-  const bgMean = bgSum / bgCount
-  const fgVariance = fgSumSq / fgCount - fgMean * fgMean
+  const innerTopD    = inTopN    ? inTop    / inTopN    : 0
+  const innerBottomD = inBottomN ? inBottom / inBottomN : 0
+  const innerLeftD   = inLeftN   ? inLeft   / inLeftN   : 0
+  const innerRightD  = inRightN  ? inRight  / inRightN  : 0
 
-  // 1. Document is meaningfully different from background (≥ 12 luminance units on 0-255)
-  const contrastOk = Math.abs(fgMean - bgMean) >= 12
+  // Each side: outer band has enough strong edges AND has more than the inner band
+  const sideOk = (outer: number, inner: number) => outer > 0.07 && outer > inner * 1.4
 
-  // 2. Document area has texture (not a uniform color or flat hand). Variance > 50 on 0-255 scale.
-  const textureOk = fgVariance >= 50
+  const edgesOk = (
+    sideOk(outerTopD,    innerTopD)    &&
+    sideOk(outerBottomD, innerBottomD) &&
+    sideOk(outerLeftD,   innerLeftD)   &&
+    sideOk(outerRightD,  innerRightD)
+  )
 
-  return contrastOk && textureOk
+  // Sharpness: variance in the center 50% of the guide
+  const cx1 = gx + Math.round(gw * 0.25)
+  const cx2 = gx + Math.round(gw * 0.75)
+  const cy1 = gy + Math.round(gh * 0.25)
+  const cy2 = gy + Math.round(gh * 0.75)
+  let sum = 0, sumSq = 0, count = 0
+  for (let py = cy1; py < cy2; py++) {
+    for (let px = cx1; px < cx2; px++) {
+      const idx = (py * w + px) * 4
+      const lum = pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114
+      sum += lum
+      sumSq += lum * lum
+      count++
+    }
+  }
+  const mean = sum / count
+  const variance = sumSq / count - mean * mean
+  const sharpnessOk = variance > 60
+
+  return edgesOk && sharpnessOk
 }
 
 export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: UseDocumentDetectionOptions) {

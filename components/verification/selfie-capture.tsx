@@ -121,12 +121,15 @@ export function SelfieCapture() {
         const faceCenterY = (faceTop + faceBottom) / 2
         const faceWidth   = faceRight - faceLeft
 
-        // Circle guide fills 85% of the square, so radius = 0.425 in square-norm coords
+        // Circle guide fills 85% of the visible square, so radius = 0.425 in square coords
         const cx = 0.5, cy = 0.5, r = 0.425
 
-        // "Face fits the circle" — outer eye corners should span ~55-80% of the square width
-        const centered = Math.abs(faceCenterX - cx) < 0.12 && Math.abs(faceCenterY - cy) < 0.15
-        const goodSize = faceWidth > 0.55 && faceWidth < 0.80
+        // Industry-standard framing (Onfido/Veriff style): face occupies ~60-70% of
+        // the circle diameter, with comfortable headroom around it. faceWidth here
+        // is the outer-eye-corner span — a properly framed face shows eye corners
+        // at ~22-36% of the visible square (i.e. ~28-42% of the circle diameter).
+        const centered = Math.abs(faceCenterX - cx) < 0.18 && Math.abs(faceCenterY - cy) < 0.20
+        const goodSize = faceWidth > 0.22 && faceWidth < 0.38
         const fullyIn  = (
           faceLeft   > (cx - r) &&
           faceRight  < (cx + r) &&
@@ -139,9 +142,9 @@ export function SelfieCapture() {
 
         if (aligned) {
           setFaceStatus("aligned")
-        } else if (faceWidth < 0.55) {
+        } else if (faceWidth < 0.22) {
           setFaceStatus("too_far")
-        } else if (faceWidth > 0.80) {
+        } else if (faceWidth > 0.38) {
           setFaceStatus("too_close")
         } else if (!centered) {
           setFaceStatus("off_center")
