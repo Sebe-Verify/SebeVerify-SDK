@@ -46,7 +46,7 @@ function checkDocument(
   aspectRatio: number
 ): boolean {
   const edges = sobelEdgeStrength(pixels, w, h)
-  const threshold = 50
+  const threshold = 45
 
   // Guide zone matches the on-screen overlay
   const isPortrait = aspectRatio < 1
@@ -55,68 +55,67 @@ function checkDocument(
   const gx = Math.round((w - gw) / 2)
   const gy = Math.round((h - gh) / 2)
 
-  // Search range for each document edge: scan inward up to 15% of the guide dim.
-  // We require the strongest edge line to sit within ~10% of the guide's outer border,
-  // which means the document fills ≥ ~90% of the guide.
-  const verticalSearch   = Math.max(4, Math.round(gh * 0.15))
-  const horizontalSearch = Math.max(4, Math.round(gw * 0.15))
-  const maxOffsetV       = Math.max(2, Math.round(gh * 0.10))
-  const maxOffsetH       = Math.max(2, Math.round(gw * 0.10))
-  const minLineDensity   = 0.30 // ≥30% of pixels along the line must be strong edges
+  // Outer perimeter band — where the document edge SHOULD be (0-12% inward from guide border)
+  const outerBandV = Math.max(3, Math.round(gh * 0.12))
+  const outerBandH = Math.max(3, Math.round(gw * 0.12))
 
-  // Scan a horizontal line at row `py` across the guide width and return density of strong edges
-  const horizontalLineDensity = (py: number): number => {
-    if (py < 1 || py >= h - 1) return 0
-    let strong = 0, total = 0
+  // Inner "no-edge" band — if the document is smaller and centered, its edges will fall here.
+  // This zone runs from 18-35% inward. We require edge density here to be LOW.
+  const innerStartV = Math.round(gh * 0.18)
+  const innerEndV   = Math.round(gh * 0.35)
+  const innerStartH = Math.round(gw * 0.18)
+  const innerEndH   = Math.round(gw * 0.35)
+
+  let outerTop = 0, outerBottom = 0, outerLeft = 0, outerRight = 0
+  let outerTopTotal = 0, outerBottomTotal = 0, outerLeftTotal = 0, outerRightTotal = 0
+
+  let innerTopRing = 0, innerBottomRing = 0, innerLeftRing = 0, innerRightRing = 0
+  let innerTopTotal = 0, innerBottomTotal = 0, innerLeftTotal = 0, innerRightTotal = 0
+
+  for (let py = gy; py < gy + gh; py++) {
     for (let px = gx; px < gx + gw; px++) {
-      if (edges[py * w + px] > threshold) strong++
-      total++
+      const e = edges[py * w + px]
+      const strong = e > threshold
+
+      const dyFromTop    = py - gy
+      const dyFromBottom = (gy + gh - 1) - py
+      const dxFromLeft   = px - gx
+      const dxFromRight  = (gx + gw - 1) - px
+
+      // Outer perimeter bands
+      if (dyFromTop < outerBandV)    { outerTopTotal++;    if (strong) outerTop++ }
+      if (dyFromBottom < outerBandV) { outerBottomTotal++; if (strong) outerBottom++ }
+      if (dxFromLeft < outerBandH)   { outerLeftTotal++;   if (strong) outerLeft++ }
+      if (dxFromRight < outerBandH)  { outerRightTotal++;  if (strong) outerRight++ }
+
+      // Inner anti-bands (where small/floating docs would show their edges)
+      if (dyFromTop    >= innerStartV && dyFromTop    < innerEndV) { innerTopTotal++;    if (strong) innerTopRing++ }
+      if (dyFromBottom >= innerStartV && dyFromBottom < innerEndV) { innerBottomTotal++; if (strong) innerBottomRing++ }
+      if (dxFromLeft   >= innerStartH && dxFromLeft   < innerEndH) { innerLeftTotal++;   if (strong) innerLeftRing++ }
+      if (dxFromRight  >= innerStartH && dxFromRight  < innerEndH) { innerRightTotal++;  if (strong) innerRightRing++ }
     }
-    return total > 0 ? strong / total : 0
   }
 
-  const verticalLineDensity = (px: number): number => {
-    if (px < 1 || px >= w - 1) return 0
-    let strong = 0, total = 0
-    for (let py = gy; py < gy + gh; py++) {
-      if (edges[py * w + px] > threshold) strong++
-      total++
-    }
-    return total > 0 ? strong / total : 0
-  }
+  const outerTopD    = outerTopTotal    > 0 ? outerTop    / outerTopTotal    : 0
+  const outerBottomD = outerBottomTotal > 0 ? outerBottom / outerBottomTotal : 0
+  const outerLeftD   = outerLeftTotal   > 0 ? outerLeft   / outerLeftTotal   : 0
+  const outerRightD  = outerRightTotal  > 0 ? outerRight  / outerRightTotal  : 0
 
-  // Find best top edge: scan from gy downward, track row with max density
-  let bestTop = -1, bestTopDensity = 0
-  for (let dy = 0; dy <= verticalSearch; dy++) {
-    const d = horizontalLineDensity(gy + dy)
-    if (d > bestTopDensity) { bestTopDensity = d; bestTop = dy }
-  }
+  const innerTopD    = innerTopTotal    > 0 ? innerTopRing    / innerTopTotal    : 0
+  const innerBottomD = innerBottomTotal > 0 ? innerBottomRing / innerBottomTotal : 0
+  const innerLeftD   = innerLeftTotal   > 0 ? innerLeftRing   / innerLeftTotal   : 0
+  const innerRightD  = innerRightTotal  > 0 ? innerRightRing  / innerRightTotal  : 0
 
-  let bestBottom = -1, bestBottomDensity = 0
-  for (let dy = 0; dy <= verticalSearch; dy++) {
-    const d = horizontalLineDensity(gy + gh - 1 - dy)
-    if (d > bestBottomDensity) { bestBottomDensity = d; bestBottom = dy }
-  }
+  // Document near guide border: strong outer edges AND outer must be denser than inner
+  // (outer > 2× inner means most strong edges sit at the perimeter, not inside)
+  const sideOk = (outer: number, inner: number) => outer > 0.06 && outer > inner * 1.8
 
-  let bestLeft = -1, bestLeftDensity = 0
-  for (let dx = 0; dx <= horizontalSearch; dx++) {
-    const d = verticalLineDensity(gx + dx)
-    if (d > bestLeftDensity) { bestLeftDensity = d; bestLeft = dx }
-  }
-
-  let bestRight = -1, bestRightDensity = 0
-  for (let dx = 0; dx <= horizontalSearch; dx++) {
-    const d = verticalLineDensity(gx + gw - 1 - dx)
-    if (d > bestRightDensity) { bestRightDensity = d; bestRight = dx }
-  }
-
-  // Each side must (1) have a strong continuous line, (2) sit within max offset of guide border
-  const topOk    = bestTopDensity    >= minLineDensity && bestTop    >= 0 && bestTop    <= maxOffsetV
-  const bottomOk = bestBottomDensity >= minLineDensity && bestBottom >= 0 && bestBottom <= maxOffsetV
-  const leftOk   = bestLeftDensity   >= minLineDensity && bestLeft   >= 0 && bestLeft   <= maxOffsetH
-  const rightOk  = bestRightDensity  >= minLineDensity && bestRight  >= 0 && bestRight  <= maxOffsetH
-
-  const fillOk = topOk && bottomOk && leftOk && rightOk
+  const edgesOk = (
+    sideOk(outerTopD,    innerTopD)    &&
+    sideOk(outerBottomD, innerBottomD) &&
+    sideOk(outerLeftD,   innerLeftD)   &&
+    sideOk(outerRightD,  innerRightD)
+  )
 
   // Sharpness: variance in the center 50% of the guide
   const cx1 = gx + Math.round(gw * 0.25)
@@ -135,9 +134,9 @@ function checkDocument(
   }
   const mean = sum / count
   const variance = sumSq / count - mean * mean
-  const sharpnessOk = variance > 100
+  const sharpnessOk = variance > 80
 
-  return fillOk && sharpnessOk
+  return edgesOk && sharpnessOk
 }
 
 export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: UseDocumentDetectionOptions) {
