@@ -104,10 +104,29 @@ export function CameraCapture({
           try {
             await new Promise((r) => setTimeout(r, attempts === 0 ? 300 : 800))
 
+            // focusMode is in the MediaCapture spec but not yet in lib.dom types.
+            // Spread it via a generic-typed object so TS doesn't object.
+            const focusConstraint = { focusMode: "continuous", advanced: [{ focusMode: "continuous" }] } as unknown as MediaTrackConstraints
+
             mediaStream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: { ideal: mode }, width: { ideal: 1280 } },
+              video: {
+                facingMode: { ideal: mode },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                ...focusConstraint,
+              },
               audio: false,
             })
+
+            // Some phones (esp. iOS) need an explicit applyConstraints to actually engage continuous focus
+            try {
+              const [track] = mediaStream.getVideoTracks()
+              if (track && "applyConstraints" in track) {
+                await track.applyConstraints(focusConstraint)
+              }
+            } catch {
+              // Not supported on this browser/device — fall through silently
+            }
             break
           } catch (err) {
             lastError = err

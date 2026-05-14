@@ -9,134 +9,94 @@ interface UseDocumentDetectionOptions {
   aspectRatio?: number
 }
 
+// Analysis canvas width — height is derived from the video's aspect ratio so we
+// don't introduce non-uniform scaling distortion when downsampling.
 const ANALYSIS_WIDTH = 320
-const ANALYSIS_HEIGHT = 200
-const TARGET_FPS = 15
+const TARGET_FPS = 10
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS
 const STABILITY_MS = 400
 
-// Sobel kernels
-const KX = [-1, 0, 1, -2, 0, 2, -1, 0, 1]
-const KY = [-1, -2, -1, 0, 0, 0, 1, 2, 1]
-
-function sobelEdgeStrength(pixels: Uint8ClampedArray, w: number, h: number): Float32Array {
-  const out = new Float32Array(w * h)
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      let gx = 0, gy = 0
-      for (let ky = -1; ky <= 1; ky++) {
-        for (let kx = -1; kx <= 1; kx++) {
-          const idx = ((y + ky) * w + (x + kx)) * 4
-          const gray = pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114
-          const ki = (ky + 1) * 3 + (kx + 1)
-          gx += gray * KX[ki]
-          gy += gray * KY[ki]
-        }
-      }
-      out[y * w + x] = Math.sqrt(gx * gx + gy * gy)
-    }
-  }
-  return out
-}
-
+/**
+ * Detection algorithm: foreground-vs-background luminance contrast.
+ *
+ * Reasoning: a document filling the guide will have a different average luminance
+ * from the background visible at the corners of the analysis canvas (outside the guide).
+ * This works for documents of any color against any background — we don't need to detect
+ * "edges" or specific shapes. We just check that:
+ *
+ *   1. The guide interior has a meaningfully different average luminance than the outside.
+ *   2. The guide interior has enough texture (non-trivial variance) — rules out a hand or
+ *      uniform color filling the frame.
+ *
+ * This is far more robust than Sobel-based edge detection on low-quality phone video.
+ */
 function checkDocument(
   pixels: Uint8ClampedArray,
   w: number,
   h: number,
   aspectRatio: number
 ): boolean {
-  const edges = sobelEdgeStrength(pixels, w, h)
-  const threshold = 45
-
-  // Guide zone matches the on-screen overlay
+  // Slightly smaller than the on-screen overlay so we have enough background
+  // pixels around it for a reliable foreground/background contrast comparison.
   const isPortrait = aspectRatio < 1
-  const gw = isPortrait ? Math.round(Math.min(w, h) * 0.75 * aspectRatio) : Math.round(w * 0.85)
-  const gh = Math.round(gw / aspectRatio)
+  let gw = isPortrait ? Math.round(Math.min(w, h) * 0.65 * aspectRatio) : Math.round(w * 0.7)
+  let gh = Math.round(gw / aspectRatio)
+  // Clamp so the guide always fits inside the analysis canvas with room for a background ring
+  if (gh > h * 0.85) {
+    gh = Math.round(h * 0.85)
+    gw = Math.round(gh * aspectRatio)
+  }
+  if (gw > w * 0.85) {
+    gw = Math.round(w * 0.85)
+    gh = Math.round(gw / aspectRatio)
+  }
   const gx = Math.round((w - gw) / 2)
   const gy = Math.round((h - gh) / 2)
 
-  // Outer perimeter band — where the document edge SHOULD be (0-12% inward from guide border)
-  const outerBandV = Math.max(3, Math.round(gh * 0.12))
-  const outerBandH = Math.max(3, Math.round(gw * 0.12))
+  // Background sample = pixels OUTSIDE the guide (the surrounding visible area)
+  // Foreground sample = inner 70% of the guide (avoid the document's own border)
+  const fxStart = gx + Math.round(gw * 0.15)
+  const fxEnd   = gx + Math.round(gw * 0.85)
+  const fyStart = gy + Math.round(gh * 0.15)
+  const fyEnd   = gy + Math.round(gh * 0.85)
 
-  // Inner "no-edge" band — if the document is smaller and centered, its edges will fall here.
-  // This zone runs from 18-35% inward. We require edge density here to be LOW.
-  const innerStartV = Math.round(gh * 0.18)
-  const innerEndV   = Math.round(gh * 0.35)
-  const innerStartH = Math.round(gw * 0.18)
-  const innerEndH   = Math.round(gw * 0.35)
+  let fgSum = 0, fgSumSq = 0, fgCount = 0
+  let bgSum = 0, bgCount = 0
 
-  let outerTop = 0, outerBottom = 0, outerLeft = 0, outerRight = 0
-  let outerTopTotal = 0, outerBottomTotal = 0, outerLeftTotal = 0, outerRightTotal = 0
+  // Stride of 2 — every other pixel is plenty at 320×200 and halves the work
+  const stride = 2
 
-  let innerTopRing = 0, innerBottomRing = 0, innerLeftRing = 0, innerRightRing = 0
-  let innerTopTotal = 0, innerBottomTotal = 0, innerLeftTotal = 0, innerRightTotal = 0
-
-  for (let py = gy; py < gy + gh; py++) {
-    for (let px = gx; px < gx + gw; px++) {
-      const e = edges[py * w + px]
-      const strong = e > threshold
-
-      const dyFromTop    = py - gy
-      const dyFromBottom = (gy + gh - 1) - py
-      const dxFromLeft   = px - gx
-      const dxFromRight  = (gx + gw - 1) - px
-
-      // Outer perimeter bands
-      if (dyFromTop < outerBandV)    { outerTopTotal++;    if (strong) outerTop++ }
-      if (dyFromBottom < outerBandV) { outerBottomTotal++; if (strong) outerBottom++ }
-      if (dxFromLeft < outerBandH)   { outerLeftTotal++;   if (strong) outerLeft++ }
-      if (dxFromRight < outerBandH)  { outerRightTotal++;  if (strong) outerRight++ }
-
-      // Inner anti-bands (where small/floating docs would show their edges)
-      if (dyFromTop    >= innerStartV && dyFromTop    < innerEndV) { innerTopTotal++;    if (strong) innerTopRing++ }
-      if (dyFromBottom >= innerStartV && dyFromBottom < innerEndV) { innerBottomTotal++; if (strong) innerBottomRing++ }
-      if (dxFromLeft   >= innerStartH && dxFromLeft   < innerEndH) { innerLeftTotal++;   if (strong) innerLeftRing++ }
-      if (dxFromRight  >= innerStartH && dxFromRight  < innerEndH) { innerRightTotal++;  if (strong) innerRightRing++ }
-    }
-  }
-
-  const outerTopD    = outerTopTotal    > 0 ? outerTop    / outerTopTotal    : 0
-  const outerBottomD = outerBottomTotal > 0 ? outerBottom / outerBottomTotal : 0
-  const outerLeftD   = outerLeftTotal   > 0 ? outerLeft   / outerLeftTotal   : 0
-  const outerRightD  = outerRightTotal  > 0 ? outerRight  / outerRightTotal  : 0
-
-  const innerTopD    = innerTopTotal    > 0 ? innerTopRing    / innerTopTotal    : 0
-  const innerBottomD = innerBottomTotal > 0 ? innerBottomRing / innerBottomTotal : 0
-  const innerLeftD   = innerLeftTotal   > 0 ? innerLeftRing   / innerLeftTotal   : 0
-  const innerRightD  = innerRightTotal  > 0 ? innerRightRing  / innerRightTotal  : 0
-
-  // Document near guide border: strong outer edges AND outer must be denser than inner
-  // (outer > 2× inner means most strong edges sit at the perimeter, not inside)
-  const sideOk = (outer: number, inner: number) => outer > 0.06 && outer > inner * 1.8
-
-  const edgesOk = (
-    sideOk(outerTopD,    innerTopD)    &&
-    sideOk(outerBottomD, innerBottomD) &&
-    sideOk(outerLeftD,   innerLeftD)   &&
-    sideOk(outerRightD,  innerRightD)
-  )
-
-  // Sharpness: variance in the center 50% of the guide
-  const cx1 = gx + Math.round(gw * 0.25)
-  const cx2 = gx + Math.round(gw * 0.75)
-  const cy1 = gy + Math.round(gh * 0.25)
-  const cy2 = gy + Math.round(gh * 0.75)
-  let sum = 0, sumSq = 0, count = 0
-  for (let py = cy1; py < cy2; py++) {
-    for (let px = cx1; px < cx2; px++) {
+  for (let py = 0; py < h; py += stride) {
+    for (let px = 0; px < w; px += stride) {
       const idx = (py * w + px) * 4
       const lum = pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114
-      sum += lum
-      sumSq += lum * lum
-      count++
+
+      const inGuide = px >= gx && px < gx + gw && py >= gy && py < gy + gh
+
+      if (!inGuide) {
+        bgSum += lum
+        bgCount++
+      } else if (px >= fxStart && px < fxEnd && py >= fyStart && py < fyEnd) {
+        fgSum += lum
+        fgSumSq += lum * lum
+        fgCount++
+      }
     }
   }
-  const mean = sum / count
-  const variance = sumSq / count - mean * mean
-  const sharpnessOk = variance > 80
 
-  return edgesOk && sharpnessOk
+  if (fgCount === 0 || bgCount === 0) return false
+
+  const fgMean = fgSum / fgCount
+  const bgMean = bgSum / bgCount
+  const fgVariance = fgSumSq / fgCount - fgMean * fgMean
+
+  // 1. Document is meaningfully different from background (≥ 12 luminance units on 0-255)
+  const contrastOk = Math.abs(fgMean - bgMean) >= 12
+
+  // 2. Document area has texture (not a uniform color or flat hand). Variance > 50 on 0-255 scale.
+  const textureOk = fgVariance >= 50
+
+  return contrastOk && textureOk
 }
 
 export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: UseDocumentDetectionOptions) {
@@ -150,8 +110,6 @@ export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: U
   const getOffscreen = useCallback(() => {
     if (!offscreenRef.current) {
       offscreenRef.current = document.createElement("canvas")
-      offscreenRef.current.width = ANALYSIS_WIDTH
-      offscreenRef.current.height = ANALYSIS_HEIGHT
     }
     return offscreenRef.current
   }, [])
@@ -176,11 +134,21 @@ export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: U
         if (video && video.readyState >= 2 && video.videoWidth > 0) {
           try {
             const canvas = getOffscreen()
+            // Derive analysis height from the video's actual aspect ratio — preserves
+            // proportions so the guide-zone calculation matches what the user sees.
+            const analysisHeight = Math.max(
+              80,
+              Math.round((ANALYSIS_WIDTH * video.videoHeight) / video.videoWidth),
+            )
+            if (canvas.width !== ANALYSIS_WIDTH || canvas.height !== analysisHeight) {
+              canvas.width = ANALYSIS_WIDTH
+              canvas.height = analysisHeight
+            }
             const ctx = canvas.getContext("2d", { willReadFrequently: true })
             if (ctx) {
-              ctx.drawImage(video, 0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT)
-              const imageData = ctx.getImageData(0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT)
-              const detected = checkDocument(imageData.data, ANALYSIS_WIDTH, ANALYSIS_HEIGHT, aspectRatio)
+              ctx.drawImage(video, 0, 0, ANALYSIS_WIDTH, analysisHeight)
+              const imageData = ctx.getImageData(0, 0, ANALYSIS_WIDTH, analysisHeight)
+              const detected = checkDocument(imageData.data, ANALYSIS_WIDTH, analysisHeight, aspectRatio)
 
               if (detected) {
                 if (detectedSinceRef.current === null) {
