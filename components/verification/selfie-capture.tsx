@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
-import { Category, Matrix } from "@mediapipe/tasks-vision"
-import { CameraCapture } from "./camera-capture"
+import { Category } from "@mediapipe/tasks-vision"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
 import { ArrowRight, Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight as ArrowRightIcon } from "lucide-react"
@@ -40,6 +39,38 @@ export function SelfieCapture() {
   const [faceAligned, setFaceAligned] = useState(false)
   const [faceStatus, setFaceStatus] = useState<"none" | "too_far" | "too_close" | "off_center" | "aligned">("none")
   const faceAlignedRef = useRef(false)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  // Start the front camera on mount, stop on unmount
+  useEffect(() => {
+    let cancelled = false
+
+    const start = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        })
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.play().catch(() => {})
+        }
+      } catch {
+        // Camera permission denied or unavailable — the video element stays black; user sees instructions
+      }
+    }
+
+    void start()
+
+    return () => {
+      cancelled = true
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+      if (videoRef.current) videoRef.current.srcObject = null
+    }
+  }, [])
 
   useEffect(() => {
     const shuffled = [...ALL_CHALLENGES].sort(() => 0.5 - Math.random())
