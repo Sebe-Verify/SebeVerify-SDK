@@ -266,8 +266,15 @@ export function CameraCapture({
         <p className="text-sm text-muted-foreground">{instructions}</p>
       </div>
 
-      <div className="flex flex-1 flex-col">
-        <div className="relative min-h-[300px] flex-1 overflow-hidden rounded-2xl bg-black">
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <div
+          className={cn(
+            "relative w-full overflow-hidden rounded-2xl bg-black",
+            overlayType === "selfie"
+              ? "aspect-square max-w-md"
+              : "min-h-[300px] flex-1",
+          )}
+        >
           {capturedImage ? (
             <img
               src={capturedImage}
@@ -327,13 +334,12 @@ export function CameraCapture({
                 </div>
               )}
 
-              {/* Selfie overlay: large responsive circle */}
+              {/* Selfie overlay: circle fills 85% of the 1:1 container */}
               {overlayType === "selfie" && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <div
                     className={cn(
-                      "rounded-full transition-all duration-500",
-                      "w-[75vw] h-[75vw] max-w-[340px] max-h-[340px]",
+                      "h-[85%] w-[85%] rounded-full transition-all duration-500",
                       isFaceDetected
                         ? "border-[3px] border-solid border-green-500 shadow-[0_0_0_4px_rgba(34,197,94,0.2)]"
                         : "border-[3px] border-dashed border-white/70"

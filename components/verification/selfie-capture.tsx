@@ -93,11 +93,25 @@ export function SelfieCapture() {
       const results = landmarker.detectForVideo(video, performance.now());
 
       // ── Face positioning detection ──────────────────────────────────────────
+      // Video is rendered as object-cover inside a 1:1 container, so the visible
+      // square is the centered portion of the (typically wider) video frame.
+      // We compute everything in the visible-square coordinate system.
       const landmarks = results.faceLandmarks?.[0]
       if (landmarks && landmarks.length > 263) {
-        // Key landmark indices: outer eye corners (33, 263), nose tip (1), forehead (10), chin (152)
-        const xs = [landmarks[33].x, landmarks[263].x, landmarks[1].x]
-        const ys = [landmarks[10].y, landmarks[152].y]
+        const vw = video.videoWidth
+        const vh = video.videoHeight
+        const squareSide = Math.min(vw, vh)
+        const cropOffsetX = (vw - squareSide) / 2 / vw   // normalized offset in video coords
+        const cropOffsetY = (vh - squareSide) / 2 / vh
+        const cropScaleX  = vw / squareSide               // scale from video-norm to square-norm
+        const cropScaleY  = vh / squareSide
+
+        // Project a video-normalized coord into the visible 1:1 square (0..1)
+        const toSquareX = (x: number) => (x - cropOffsetX) * cropScaleX
+        const toSquareY = (y: number) => (y - cropOffsetY) * cropScaleY
+
+        const xs = [landmarks[33].x, landmarks[263].x, landmarks[1].x].map(toSquareX)
+        const ys = [landmarks[10].y, landmarks[152].y].map(toSquareY)
         const faceLeft   = Math.min(...xs)
         const faceRight  = Math.max(...xs)
         const faceTop    = Math.min(...ys)
@@ -107,16 +121,17 @@ export function SelfieCapture() {
         const faceCenterY = (faceTop + faceBottom) / 2
         const faceWidth   = faceRight - faceLeft
 
-        // Circle guide: centered at 0.5,0.5 with radius ~37.5% of frame width
-        const cx = 0.5, cy = 0.5, r = 0.375
+        // Circle guide fills 85% of the square, so radius = 0.425 in square-norm coords
+        const cx = 0.5, cy = 0.5, r = 0.425
 
-        const centered = Math.abs(faceCenterX - cx) < 0.12 && Math.abs(faceCenterY - cy) < 0.12
-        const goodSize = faceWidth > 0.35 && faceWidth < 0.75
+        // "Face fits the circle" — outer eye corners should span ~55-80% of the square width
+        const centered = Math.abs(faceCenterX - cx) < 0.12 && Math.abs(faceCenterY - cy) < 0.15
+        const goodSize = faceWidth > 0.55 && faceWidth < 0.80
         const fullyIn  = (
-          faceLeft   > (cx - r + 0.05) &&
-          faceRight  < (cx + r - 0.05) &&
-          faceTop    > (cy - r + 0.05) &&
-          faceBottom < (cy + r - 0.05)
+          faceLeft   > (cx - r) &&
+          faceRight  < (cx + r) &&
+          faceTop    > (cy - r) &&
+          faceBottom < (cy + r)
         )
 
         const aligned = centered && goodSize && fullyIn
@@ -124,9 +139,9 @@ export function SelfieCapture() {
 
         if (aligned) {
           setFaceStatus("aligned")
-        } else if (faceWidth < 0.35) {
+        } else if (faceWidth < 0.55) {
           setFaceStatus("too_far")
-        } else if (faceWidth > 0.75) {
+        } else if (faceWidth > 0.80) {
           setFaceStatus("too_close")
         } else if (!centered) {
           setFaceStatus("off_center")

@@ -7,6 +7,9 @@ import { useVerificationStore } from "@/lib/verification-store"
 export function ReviewDocument() {
   const { documentType, frontImage, backImage, setStep, setFrontImage, setBackImage } = useVerificationStore()
 
+  // Preview must match the actual saved crop: portrait for passports, landscape for IDs
+  const previewAspect = documentType === 'passport' ? 0.704 : 1.6
+
   const handleConfirm = () => {
     setStep('selfie')
   }
@@ -48,11 +51,11 @@ export function ReviewDocument() {
             </span>
           </div>
           {frontImage ? (
-            <div className="relative aspect-[1.6]">
+            <div className="relative flex items-center justify-center bg-muted" style={{ aspectRatio: previewAspect }}>
               <img
                 src={frontImage}
                 alt="Document front"
-                className="w-full h-full object-cover"
+                className="h-full w-full object-contain"
               />
               <Button
                 type="button"
@@ -66,7 +69,7 @@ export function ReviewDocument() {
               </Button>
             </div>
           ) : (
-            <div className="aspect-[1.6] flex items-center justify-center bg-muted">
+            <div className="flex items-center justify-center bg-muted" style={{ aspectRatio: previewAspect }}>
               <AlertCircle className="h-8 w-8 text-muted-foreground" />
             </div>
           )}
@@ -79,11 +82,11 @@ export function ReviewDocument() {
               <span className="text-sm font-medium text-foreground">Back Side</span>
             </div>
             {backImage ? (
-              <div className="relative aspect-[1.6]">
+              <div className="relative flex items-center justify-center bg-muted" style={{ aspectRatio: previewAspect }}>
                 <img
                   src={backImage}
                   alt="Document back"
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-contain"
                 />
                 <Button
                   type="button"
@@ -97,7 +100,7 @@ export function ReviewDocument() {
                 </Button>
               </div>
             ) : (
-              <div className="aspect-[1.6] flex items-center justify-center bg-muted">
+              <div className="flex items-center justify-center bg-muted" style={{ aspectRatio: previewAspect }}>
                 <AlertCircle className="h-8 w-8 text-muted-foreground" />
               </div>
             )}
