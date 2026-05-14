@@ -31,11 +31,11 @@ export function ReviewDocument() {
   return (
     <div className="flex flex-col flex-1 px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-foreground mb-2">
-          Review Your Document
+        <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">
+          Review your document
         </h1>
         <p className="text-muted-foreground">
-          Make sure the images are clear and all information is visible
+          Make sure the images are clear and all information is visible.
         </p>
       </div>
 
@@ -54,13 +54,16 @@ export function ReviewDocument() {
                 alt="Document front"
                 className="w-full h-full object-cover"
               />
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
                 onClick={handleRetakeFront}
-                className="absolute bottom-3 right-3 h-10 px-4 rounded-lg bg-background/90 backdrop-blur-sm flex items-center gap-2 text-sm font-medium text-foreground shadow-lg"
+                className="absolute bottom-3 right-3 shadow-md backdrop-blur-sm"
               >
                 <RotateCcw className="h-4 w-4" />
                 Retake
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="aspect-[1.6] flex items-center justify-center bg-muted">
@@ -82,13 +85,16 @@ export function ReviewDocument() {
                   alt="Document back"
                   className="w-full h-full object-cover"
                 />
-                <button
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={handleRetakeBack}
-                  className="absolute bottom-3 right-3 h-10 px-4 rounded-lg bg-background/90 backdrop-blur-sm flex items-center gap-2 text-sm font-medium text-foreground shadow-lg"
+                  className="absolute bottom-3 right-3 shadow-md backdrop-blur-sm"
                 >
                   <RotateCcw className="h-4 w-4" />
                   Retake
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="aspect-[1.6] flex items-center justify-center bg-muted">
@@ -99,12 +105,12 @@ export function ReviewDocument() {
         )}
 
         {/* Tips */}
-        <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
-          <h3 className="text-sm font-medium text-foreground mb-2">Check that:</h3>
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-foreground">Check that:</h3>
           <ul className="space-y-1.5">
             {tips.map((tip, index) => (
               <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 {tip}
               </li>
             ))}
@@ -115,12 +121,12 @@ export function ReviewDocument() {
       <div className="mt-6">
         <Button
           onClick={handleConfirm}
-          className="w-full h-12"
-          size="lg"
+          size="xl"
+          className="w-full"
           disabled={!frontImage || (documentType !== 'passport' && !backImage)}
         >
-          <Check className="h-5 w-5 mr-2" />
-          Looks Good, Continue
+          <Check className="h-5 w-5" />
+          Looks good, continue
         </Button>
       </div>
     </div>

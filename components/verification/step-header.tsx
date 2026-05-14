@@ -7,11 +7,12 @@ import type { VerificationStep } from "@/lib/verification-store"
 
 interface StepHeaderProps {
   onClose?: () => void
+  stepTitle?: string
 }
 
 const noHeaderSteps: VerificationStep[] = ["intro", "doc-select"]
 
-export function StepHeader({ onClose }: StepHeaderProps) {
+export function StepHeader({ onClose, stepTitle }: StepHeaderProps) {
   const { currentStep, goBack } = useVerificationStore()
 
   if (noHeaderSteps.includes(currentStep)) {
@@ -40,7 +41,11 @@ export function StepHeader({ onClose }: StepHeaderProps) {
         )}
       </div>
 
-      <div className="min-w-0 flex-1" />
+      <div className="min-w-0 flex-1 text-center">
+        {stepTitle && (
+          <span className="text-sm font-semibold text-foreground">{stepTitle}</span>
+        )}
+      </div>
 
       <div className="w-11 shrink-0 flex justify-end">
         {onClose && (

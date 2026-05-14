@@ -15,13 +15,13 @@ export function CameraAccessScreen() {
   const setStep = useVerificationStore((s) => s.setStep)
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-background px-6 pb-10 pt-1">
+    <div className="flex min-h-full flex-1 flex-col bg-background px-6 pb-6 pt-1">
       <div className="flex flex-1 flex-col text-left">
-        <h1 className="mb-2 text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">
           Take a photo of your ID
         </h1>
         <p className="mb-8 text-base text-muted-foreground">
-          Make sure all details are clear and readable
+          Make sure all details are clear and readable.
         </p>
 
         <ul className="mb-10 space-y-3 text-base text-muted-foreground">
@@ -46,8 +46,8 @@ export function CameraAccessScreen() {
         <Button
           type="button"
           onClick={() => setStep("id-front")}
-          className="h-14 w-full touch-manipulation rounded-2xl text-base font-medium shadow-sm"
-          size="lg"
+          className="w-full touch-manipulation shadow-sm"
+          size="xl"
         >
           Enable camera
         </Button>

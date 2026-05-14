@@ -5,6 +5,8 @@ import { useState, useRef, useEffect, useCallback } from "react"
 interface UseDocumentDetectionOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>
   enabled: boolean
+  /** Width-to-height aspect ratio of the guide frame. Defaults to 1.6 (ID card). Use 0.714 for passport. */
+  aspectRatio?: number
 }
 
 const ANALYSIS_WIDTH = 320
@@ -40,14 +42,16 @@ function sobelEdgeStrength(pixels: Uint8ClampedArray, w: number, h: number): Flo
 function checkDocument(
   pixels: Uint8ClampedArray,
   w: number,
-  h: number
+  h: number,
+  aspectRatio: number
 ): boolean {
   const edges = sobelEdgeStrength(pixels, w, h)
   const threshold = 80
 
-  // Guide zone: 85% width, aspect 1.6, centered
-  const gw = Math.round(w * 0.85)
-  const gh = Math.round(gw / 1.6)
+  // Guide zone: matches the on-screen overlay (85% width for landscape, 85% height for portrait)
+  const isPortrait = aspectRatio < 1
+  const gw = isPortrait ? Math.round(Math.min(w, h) * 0.75 * aspectRatio) : Math.round(w * 0.85)
+  const gh = Math.round(gw / aspectRatio)
   const gx = Math.round((w - gw) / 2)
   const gy = Math.round((h - gh) / 2)
 
@@ -108,7 +112,7 @@ function checkDocument(
   return edgeDensityOk && sharpnessOk
 }
 
-export function useDocumentDetection({ videoRef, enabled }: UseDocumentDetectionOptions) {
+export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: UseDocumentDetectionOptions) {
   const [isDocumentDetected, setIsDocumentDetected] = useState(false)
   const offscreenRef = useRef<HTMLCanvasElement | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -149,7 +153,7 @@ export function useDocumentDetection({ videoRef, enabled }: UseDocumentDetection
             if (ctx) {
               ctx.drawImage(video, 0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT)
               const imageData = ctx.getImageData(0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT)
-              const detected = checkDocument(imageData.data, ANALYSIS_WIDTH, ANALYSIS_HEIGHT)
+              const detected = checkDocument(imageData.data, ANALYSIS_WIDTH, ANALYSIS_HEIGHT, aspectRatio)
 
               if (detected) {
                 if (detectedSinceRef.current === null) {

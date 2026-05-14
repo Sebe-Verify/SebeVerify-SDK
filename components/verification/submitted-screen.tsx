@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, Bell, CheckCircle2, ArrowRight } from "lucide-react"
+import { Clock, Bell, ArrowRight, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useVerificationStore } from "@/lib/verification-store"
 
@@ -52,8 +52,8 @@ export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps)
         <Clock className="h-12 w-12 text-primary" />
       </div>
       
-      <h1 className="text-2xl font-bold text-foreground mb-2 text-center text-balance">
-        Verification In Progress
+      <h1 className="mb-2 text-balance text-center text-2xl font-semibold tracking-tight text-foreground">
+        Verification in progress
       </h1>
       
       <p className="text-muted-foreground text-center mb-8 max-w-sm text-pretty">
@@ -98,16 +98,17 @@ export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps)
       <div className="w-full max-w-sm space-y-3">
         <Button
           onClick={handleDone}
-          className="w-full h-12"
-          size="lg"
+          size="xl"
+          className="w-full"
         >
           Done
-          <ArrowRight className="h-5 w-5 ml-2" />
+          <ArrowRight className="h-5 w-5" />
         </Button>
       </div>
 
-      <p className="text-xs text-center text-muted-foreground mt-6 max-w-xs">
-        Powered by SebeVerify. Your data is encrypted and securely stored.
+      <p className="mt-6 flex max-w-xs items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+        <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        Your data is encrypted and securely stored.
       </p>
     </div>
   )

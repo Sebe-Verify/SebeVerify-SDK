@@ -26,6 +26,8 @@ interface CameraCaptureProps {
   title: string
   instructions: ReactNode
   overlayType?: "document" | "selfie"
+  /** Width-to-height ratio of the document guide frame. Defaults to 1.6 (ID card landscape). Use 0.714 for passport portrait. */
+  documentAspectRatio?: number
   videoRef?: React.RefObject<HTMLVideoElement | null>
   hideControls?: boolean
   isFaceDetected?: boolean
@@ -38,6 +40,7 @@ export function CameraCapture({
   title,
   instructions,
   overlayType = "document",
+  documentAspectRatio = 1.6,
   videoRef: externalVideoRef,
   hideControls = false,
   isFaceDetected = false,
@@ -53,7 +56,7 @@ export function CameraCapture({
   )
 
   const detectionEnabled = overlayType === "document" && !capturedImage && isReady
-  const { isDocumentDetected } = useDocumentDetection({ videoRef, enabled: detectionEnabled })
+  const { isDocumentDetected } = useDocumentDetection({ videoRef, enabled: detectionEnabled, aspectRatio: documentAspectRatio })
 
   const stopCamera = useCallback(() => {
     if (videoRef?.current) {
@@ -178,8 +181,12 @@ export function CameraCapture({
       // Crop to guide rectangle at full native resolution — no downscale, no compression loss
       const vw = video.videoWidth
       const vh = video.videoHeight
-      const gw = vw * 0.85
-      const gh = gw / 1.6
+      const isPortrait = documentAspectRatio < 1
+      // For portrait docs (passport), base the guide on 75% of the shorter video dimension
+      const gw = isPortrait
+        ? Math.min(vw, vh) * 0.75 * documentAspectRatio
+        : vw * 0.85
+      const gh = gw / documentAspectRatio
       const gx = (vw - gw) / 2
       const gy = (vh - gh) / 2
 
@@ -285,9 +292,11 @@ export function CameraCapture({
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <div
                     className={cn(
-                      "relative aspect-[1.6] w-[85%] transition-all duration-300",
+                      "relative transition-all duration-300",
+                      documentAspectRatio >= 1 ? "w-[85%]" : "h-[85%]",
                       isDocumentDetected ? "text-green-500" : "text-white/80"
                     )}
+                    style={{ aspectRatio: documentAspectRatio }}
                   >
                     {/* Semi-transparent border for general framing */}
                     <div className={cn(

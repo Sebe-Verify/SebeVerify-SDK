@@ -31,11 +31,11 @@ export function DocumentTypeSelector() {
   return (
     <div className="flex flex-col flex-1 px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-foreground mb-2">
-          Select Document Type
+        <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">
+          Select document type
         </h1>
         <p className="text-muted-foreground">
-          Choose the type of document you want to use for verification
+          Choose the type of document you want to use for verification.
         </p>
       </div>
 
@@ -45,21 +45,21 @@ export function DocumentTypeSelector() {
             key={doc.type}
             onClick={() => handleSelect(doc.type)}
             className={cn(
-              "w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left",
+              "flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-all",
               "hover:border-primary hover:bg-primary/5",
               documentType === doc.type
                 ? "border-primary bg-primary/5"
                 : "border-border bg-card"
             )}
           >
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
               <doc.icon className="h-6 w-6 text-primary" />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <h3 className="font-medium text-foreground">{doc.label}</h3>
-              <p className="text-sm text-muted-foreground truncate">{doc.description}</p>
+              <p className="truncate text-sm text-muted-foreground">{doc.description}</p>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
           </button>
         ))}
       </div>

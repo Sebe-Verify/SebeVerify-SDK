@@ -27,16 +27,16 @@ export function ErrorScreen({ onClose }: ErrorScreenProps) {
         <AlertCircle className="h-12 w-12 text-destructive" />
       </div>
       
-      <h1 className="text-2xl font-bold text-foreground mb-2 text-center">
-        Verification Failed
+      <h1 className="mb-2 text-center text-2xl font-semibold tracking-tight text-foreground">
+        Verification failed
       </h1>
       
       <p className="text-muted-foreground text-center mb-6 max-w-sm">
         {errorMessage || "We couldn't verify your identity. Please try again."}
       </p>
 
-      <div className="w-full max-w-sm p-4 rounded-xl bg-muted/50 border border-border mb-8">
-        <h3 className="text-sm font-medium text-foreground mb-3">Troubleshooting Tips</h3>
+      <div className="w-full max-w-sm rounded-lg border border-border bg-muted/50 p-4 mb-8">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Troubleshooting tips</h3>
         <ul className="space-y-2">
           {troubleshootingTips.map((tip, index) => (
             <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -50,20 +50,21 @@ export function ErrorScreen({ onClose }: ErrorScreenProps) {
       <div className="w-full max-w-sm space-y-3">
         <Button
           onClick={handleRetry}
-          className="w-full h-12"
-          size="lg"
+          size="xl"
+          className="w-full"
         >
-          <RotateCcw className="h-5 w-5 mr-2" />
-          Try Again
+          <RotateCcw className="h-5 w-5" />
+          Try again
         </Button>
-        
+
         {onClose && (
           <Button
             onClick={onClose}
             variant="outline"
-            className="w-full h-12"
+            size="lg"
+            className="w-full"
           >
-            Cancel Verification
+            Cancel verification
           </Button>
         )}
       </div>

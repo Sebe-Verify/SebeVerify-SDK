@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useVerificationStore } from "@/lib/verification-store";
+import type { VerificationStep } from "@/lib/verification-store";
 
 import { StepHeader } from "./step-header";
 import { ProgressBar } from "./progress-bar";
@@ -22,6 +23,17 @@ interface VerificationFlowProps {
   onClose?: () => void;
   returnUrl?: string;
 }
+
+const STEP_TITLES: Partial<Record<VerificationStep, string>> = {
+  "id-camera-prep": "Capture ID",
+  "id-front": "Front of ID",
+  "id-back": "Back of ID",
+  "review": "Review",
+  "selfie": "Selfie",
+  "submitting": "Submitting",
+  "submitted": "Complete",
+  "error": "Verification failed",
+};
 
 function VerificationFlowInner({
   onComplete,
@@ -67,7 +79,7 @@ function VerificationFlowInner({
 
   return (
     <div className="flex flex-col min-h-dvh bg-background">
-      <StepHeader onClose={onClose} />
+      <StepHeader onClose={onClose} stepTitle={STEP_TITLES[currentStep]} />
       <ProgressBar currentStep={currentStep} />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
         {renderStep()}
