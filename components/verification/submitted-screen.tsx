@@ -10,9 +10,10 @@ interface SubmittedScreenProps {
 
 function generateRef() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"
-  let s = "SV-"
-  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)]
-  return s
+  const year = new Date().getFullYear()
+  let suffix = ""
+  for (let i = 0; i < 4; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
+  return `SV-${year}-${suffix}`
 }
 
 export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps) {
@@ -72,7 +73,7 @@ export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps)
         onClick={handleDone}
         className="w-full max-w-sm h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
       >
-        <span>Continue</span>
+        <span>Continue to verify</span>
         <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
           <ArrowRight size={16} />
         </div>

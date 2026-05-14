@@ -141,15 +141,16 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: var(--sv-radius-sm);
-  border: none;
-  background: transparent;
+  border-radius: 50%;
+  border: 1.5px solid var(--sv-hairline);
+  background: var(--sv-card);
   color: var(--sv-ink-2);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .sv-topbar-btn:hover {
   background: var(--sv-paper-2);
+  border-color: var(--sv-hairline);
   color: var(--sv-ink);
 }
 

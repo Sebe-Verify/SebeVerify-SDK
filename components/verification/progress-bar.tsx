@@ -34,7 +34,7 @@ export function ProgressBar({ currentStep }: ProgressBarProps) {
   const currentIndex = stepOrder.indexOf(currentStep)
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 16px 2px' }}>
+    <div className="flex justify-center px-4 pb-0.5 pt-2.5">
       <div className="sv-dots">
         {dotSteps.map((step) => {
           const stepIndex = stepOrder.indexOf(step)

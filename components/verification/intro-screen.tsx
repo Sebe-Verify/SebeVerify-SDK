@@ -66,7 +66,7 @@ export function IntroScreen() {
         <button
           type="button"
           onClick={() => setStep("doc-select")}
-          className="w-full h-[56px] rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
+          className="w-full h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
         >
           <span>Begin verification</span>
           <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">

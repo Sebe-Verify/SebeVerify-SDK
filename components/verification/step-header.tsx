@@ -9,7 +9,7 @@ interface StepHeaderProps {
   stepTitle?: string
 }
 
-const noHeaderSteps: VerificationStep[] = ["intro", "doc-select"]
+const noHeaderSteps: VerificationStep[] = ["intro"]
 
 export function StepHeader({ onClose, stepTitle }: StepHeaderProps) {
   const { currentStep, goBack } = useVerificationStore()
