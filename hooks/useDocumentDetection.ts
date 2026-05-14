@@ -59,7 +59,7 @@ function checkDocument(
   aspectRatio: number
 ): boolean {
   const edges = sobelEdgeStrength(pixels, w, h)
-  const threshold = 60
+  const threshold = 45
 
   // Guide zone, clamped so it always fits the analysis canvas
   const isPortrait = aspectRatio < 1
@@ -121,8 +121,9 @@ function checkDocument(
   const innerLeftD   = inLeftN   ? inLeft   / inLeftN   : 0
   const innerRightD  = inRightN  ? inRight  / inRightN  : 0
 
-  // Each side: outer band has enough strong edges AND has more than the inner band
-  const sideOk = (outer: number, inner: number) => outer > 0.07 && outer > inner * 1.4
+  // Each side: outer band has enough strong edges AND has more than the inner band.
+  // The ratio guards against a small document floating in the middle of the guide.
+  const sideOk = (outer: number, inner: number) => outer > 0.04 && outer > inner * 1.15
 
   const edgesOk = (
     sideOk(outerTopD,    innerTopD)    &&
@@ -148,7 +149,7 @@ function checkDocument(
   }
   const mean = sum / count
   const variance = sumSq / count - mean * mean
-  const sharpnessOk = variance > 60
+  const sharpnessOk = variance > 40
 
   return edgesOk && sharpnessOk
 }
