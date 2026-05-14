@@ -1,58 +1,55 @@
 "use client"
 
-import { Info } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 
 const tips = [
-  "Place your ID on a flat surface",
-  "Use good, even lighting",
-  "Avoid glare and shadows",
-  "Keep all four corners visible",
+  "Place your document on a flat, dark surface",
+  "Make sure the lighting is even — no glare or shadows",
+  "Keep all four corners inside the frame",
+  "Hold steady — we'll capture automatically",
 ] as const
 
 export function CameraAccessScreen() {
   const setStep = useVerificationStore((s) => s.setStep)
 
   return (
-    <div className="flex flex-col flex-1 px-5 py-7">
-      <div className="flex-1">
-        <div className="sv-step-pill mb-4">
-          <span className="sv-step-pill-num">2</span>
-          Scan ID
-        </div>
-
-        <h1 className="sv-display mb-2">
-          Prepare your document
+    <div className="flex flex-col flex-1 bg-(--sv-paper)">
+      <div className="flex-1 px-5 pt-6 pb-4">
+        <h1 className="text-[28px] font-bold leading-tight tracking-[-0.022em] text-(--sv-ink) mb-6">
+          A few things<br />before we start.
         </h1>
-        <p className="sv-lede mb-7">
-          For best results, follow the tips below before opening the camera.
-        </p>
 
-        <ul className="sv-prep-list">
+        {/* Numbered tip rows */}
+        <div className="rounded-2xl border border-(--sv-hairline) bg-(--sv-card) overflow-hidden">
           {tips.map((tip, i) => (
-            <li key={tip} className="sv-prep-item">
-              <span className="sv-prep-num">{i + 1}</span>
-              <span>{tip}</span>
-            </li>
+            <div
+              key={tip}
+              className="flex items-start gap-4 px-4 py-4 border-b border-(--sv-hairline-2) last:border-b-0"
+            >
+              <span className="font-mono text-[11px] font-semibold text-(--sv-ink-4) mt-0.5 w-5 shrink-0 tabular-nums">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className="text-[14px] text-(--sv-ink-2) leading-snug">{tip}</span>
+            </div>
           ))}
-        </ul>
-
-        <div className="mt-4 flex items-start gap-2.5 rounded-(--sv-radius-sm) border border-[rgba(44,91,255,0.15)] bg-(--sv-brand-soft) px-3.5 py-3 text-[13px] leading-relaxed text-(--sv-brand-ink)">
-          <Info size={16} className="mt-px shrink-0" />
-          <span>We&apos;ll request camera access when you continue</span>
         </div>
       </div>
 
-      <div className="pb-[max(8px,env(safe-area-inset-bottom))] pt-6">
+      {/* Bottom CTA */}
+      <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-2 space-y-3">
         <button
           type="button"
           onClick={() => setStep("id-front")}
-          className="sv-cta sv-cta-primary"
+          className="w-full h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
         >
-          Open camera
+          <span>Open camera</span>
+          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+            <ArrowRight size={16} />
+          </div>
         </button>
-        <p className="mt-3 text-center font-mono text-[11px] uppercase tracking-wide text-(--sv-ink-4)">
-          Powered by SebeVerify
+        <p className="text-center font-mono text-[10px] uppercase tracking-[0.12em] text-(--sv-ink-4)">
+          Secured by <span className="font-semibold">SebeVerify</span>
         </p>
       </div>
     </div>

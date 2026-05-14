@@ -5,16 +5,23 @@ import { Category, Matrix } from "@mediapipe/tasks-vision"
 import { CameraCapture } from "./camera-capture"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
-import { Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight } from "lucide-react"
+import { ArrowRight, Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight as ArrowRightIcon } from "lucide-react"
 
-type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right";
-const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"];
+type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right"
+const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"]
 
-const CHALLENGE_LABELS: Record<ChallengeType, ReactNode> = {
-  smile:           <span className="flex items-center gap-2"><SmilePlus className="w-4 h-4 shrink-0" /> Smile!</span>,
-  blink:           <span className="flex items-center gap-2"><Eye       className="w-4 h-4 shrink-0" /> Blink both eyes!</span>,
-  turn_head_left:  <span className="flex items-center gap-2"><ArrowLeft className="w-4 h-4 shrink-0" /> Turn head left</span>,
-  turn_head_right: <span className="flex items-center gap-2"><ArrowRight className="w-4 h-4 shrink-0" /> Turn head right</span>,
+const CHALLENGE_LABELS: Record<ChallengeType, string> = {
+  smile:           "Smile!",
+  blink:           "Blink both eyes!",
+  turn_head_left:  "Turn head left",
+  turn_head_right: "Turn head right",
+}
+
+const CHALLENGE_ICONS: Record<ChallengeType, ReactNode> = {
+  smile:           <SmilePlus size={16} className="shrink-0" />,
+  blink:           <Eye size={16} className="shrink-0" />,
+  turn_head_left:  <ArrowLeft size={16} className="shrink-0" />,
+  turn_head_right: <ArrowRightIcon size={16} className="shrink-0" />,
 }
 
 export function SelfieCapture() {
@@ -30,10 +37,8 @@ export function SelfieCapture() {
   const [capturedSnapshots, setCapturedSnapshots] = useState<string[]>([])
   const cooldownRef = useRef(false)
 
-  // Face positioning state
   const [faceAligned, setFaceAligned] = useState(false)
   const [faceStatus, setFaceStatus] = useState<"none" | "too_far" | "too_close" | "off_center" | "aligned">("none")
-  // Synchronously-readable mirror of faceAligned for the rAF loop (state lags by a frame)
   const faceAlignedRef = useRef(false)
 
   useEffect(() => {
@@ -41,16 +46,10 @@ export function SelfieCapture() {
     setChallenges(shuffled.slice(0, 3))
   }, [])
 
-  useEffect(() => {
-    void initLivenessEngine()
-  }, [initLivenessEngine])
+  useEffect(() => { void initLivenessEngine() }, [initLivenessEngine])
 
   useEffect(() => {
-    if (
-      challenges.length > 0 &&
-      currentChallengeIndex >= challenges.length &&
-      !livenessPassed
-    ) {
+    if (challenges.length > 0 && currentChallengeIndex >= challenges.length && !livenessPassed) {
       setLivenessPassed(true)
     }
   }, [challenges.length, currentChallengeIndex, livenessPassed])
@@ -65,15 +64,12 @@ export function SelfieCapture() {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return null
-
-    const MAX_WIDTH = 480;
-    const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
-
-    canvas.width = video.videoWidth * scale;
-    canvas.height = video.videoHeight * scale;
+    const MAX_WIDTH = 480
+    const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1
+    canvas.width = video.videoWidth * scale
+    canvas.height = video.videoHeight * scale
     const ctx = canvas.getContext("2d")
     if (!ctx) return null
-
     ctx.translate(canvas.width, 0)
     ctx.scale(-1, 1)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
@@ -85,254 +81,230 @@ export function SelfieCapture() {
   const holdStartTimeRef = useRef<number>(0)
 
   analyzeRef.current = () => {
-    if (!videoRef.current || !landmarker || livenessPassed) return;
-
-    const video = videoRef.current;
-
+    if (!videoRef.current || !landmarker || livenessPassed) return
+    const video = videoRef.current
     if (video.currentTime !== lastVideoTimeRef.current && video.readyState >= 2) {
-      lastVideoTimeRef.current = video.currentTime;
-      const results = landmarker.detectForVideo(video, performance.now());
+      lastVideoTimeRef.current = video.currentTime
+      const results = landmarker.detectForVideo(video, performance.now())
 
-      // ── Face positioning detection ──────────────────────────────────────────
-      // Video is rendered as object-cover inside a 1:1 container, so the visible
-      // square is the centered portion of the (typically wider) video frame.
-      // We compute everything in the visible-square coordinate system.
       const landmarks = results.faceLandmarks?.[0]
       if (landmarks && landmarks.length > 263) {
-        const vw = video.videoWidth
-        const vh = video.videoHeight
+        const vw = video.videoWidth, vh = video.videoHeight
         const squareSide = Math.min(vw, vh)
-        const cropOffsetX = (vw - squareSide) / 2 / vw   // normalized offset in video coords
+        const cropOffsetX = (vw - squareSide) / 2 / vw
         const cropOffsetY = (vh - squareSide) / 2 / vh
-        const cropScaleX  = vw / squareSide               // scale from video-norm to square-norm
-        const cropScaleY  = vh / squareSide
-
-        // Project a video-normalized coord into the visible 1:1 square (0..1)
+        const cropScaleX = vw / squareSide
+        const cropScaleY = vh / squareSide
         const toSquareX = (x: number) => (x - cropOffsetX) * cropScaleX
         const toSquareY = (y: number) => (y - cropOffsetY) * cropScaleY
 
         const xs = [landmarks[33].x, landmarks[263].x, landmarks[1].x].map(toSquareX)
         const ys = [landmarks[10].y, landmarks[152].y].map(toSquareY)
-        const faceLeft   = Math.min(...xs)
-        const faceRight  = Math.max(...xs)
-        const faceTop    = Math.min(...ys)
-        const faceBottom = Math.max(...ys)
-
+        const faceLeft = Math.min(...xs), faceRight = Math.max(...xs)
+        const faceTop = Math.min(...ys), faceBottom = Math.max(...ys)
         const faceCenterX = (faceLeft + faceRight) / 2
         const faceCenterY = (faceTop + faceBottom) / 2
-        const faceWidth   = faceRight - faceLeft
-
-        // Circle guide fills 85% of the visible square, so radius = 0.425 in square coords
+        const faceWidth = faceRight - faceLeft
         const cx = 0.5, cy = 0.5, r = 0.425
 
-        // Industry-standard framing (Onfido/Veriff style): face occupies ~60-70% of
-        // the circle diameter, with comfortable headroom around it. faceWidth here
-        // is the outer-eye-corner span — a properly framed face shows eye corners
-        // at ~22-36% of the visible square (i.e. ~28-42% of the circle diameter).
         const centered = Math.abs(faceCenterX - cx) < 0.18 && Math.abs(faceCenterY - cy) < 0.20
         const goodSize = faceWidth > 0.22 && faceWidth < 0.38
-        const fullyIn  = (
-          faceLeft   > (cx - r) &&
-          faceRight  < (cx + r) &&
-          faceTop    > (cy - r) &&
-          faceBottom < (cy + r)
-        )
-
+        const fullyIn = faceLeft > (cx - r) && faceRight < (cx + r) && faceTop > (cy - r) && faceBottom < (cy + r)
         const aligned = centered && goodSize && fullyIn
+
         setFaceAligned(aligned)
         faceAlignedRef.current = aligned
 
-        if (aligned) {
-          setFaceStatus("aligned")
-        } else if (faceWidth < 0.22) {
-          setFaceStatus("too_far")
-        } else if (faceWidth > 0.38) {
-          setFaceStatus("too_close")
-        } else if (!centered) {
-          setFaceStatus("off_center")
-        } else {
-          setFaceStatus("none")
-        }
+        if (aligned) setFaceStatus("aligned")
+        else if (faceWidth < 0.22) setFaceStatus("too_far")
+        else if (faceWidth > 0.38) setFaceStatus("too_close")
+        else if (!centered) setFaceStatus("off_center")
+        else setFaceStatus("none")
       } else {
         setFaceAligned(false)
         faceAlignedRef.current = false
         setFaceStatus("none")
       }
-      // ────────────────────────────────────────────────────────────────────────
 
-      // Only allow a challenge to pass while the face is properly framed in the circle.
-      // Drifting out of frame resets the hold timer too — so partial holds don't carry over.
       if (!faceAlignedRef.current) {
         holdStartTimeRef.current = 0
       } else if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-        const shapes: Category[] = results.faceBlendshapes[0].categories;
-        const currentChallenge = challenges[currentChallengeIndex];
-        let passed = false;
+        const shapes: Category[] = results.faceBlendshapes[0].categories
+        const currentChallenge = challenges[currentChallengeIndex]
+        let passed = false
 
         if (currentChallenge === "smile") {
-          const smileLeft = shapes.find((s) => s.categoryName === "mouthSmileLeft")?.score || 0;
-          const smileRight = shapes.find((s) => s.categoryName === "mouthSmileRight")?.score || 0;
-          if (smileLeft > 0.5 && smileRight > 0.5) passed = true;
-        }
-        else if (currentChallenge === "blink") {
-          const blinkLeft = shapes.find((s) => s.categoryName === "eyeBlinkLeft")?.score || 0;
-          const blinkRight = shapes.find((s) => s.categoryName === "eyeBlinkRight")?.score || 0;
-          if (blinkLeft > 0.4 && blinkRight > 0.4) passed = true;
-        }
-        else if (currentChallenge === "turn_head_left" || currentChallenge === "turn_head_right") {
-          if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
-            const matrix: Matrix = results.facialTransformationMatrixes[0];
-            const data = matrix.data;
-            const yaw = Math.atan2(-data[8], Math.sqrt(data[9] * data[9] + data[10] * data[10])) * 180 / Math.PI;
-            if (currentChallenge === "turn_head_left" && yaw < -20) passed = true;
-            if (currentChallenge === "turn_head_right" && yaw > 20) passed = true;
+          const L = shapes.find(s => s.categoryName === "mouthSmileLeft")?.score ?? 0
+          const R = shapes.find(s => s.categoryName === "mouthSmileRight")?.score ?? 0
+          if (L > 0.5 && R > 0.5) passed = true
+        } else if (currentChallenge === "blink") {
+          const L = shapes.find(s => s.categoryName === "eyeBlinkLeft")?.score ?? 0
+          const R = shapes.find(s => s.categoryName === "eyeBlinkRight")?.score ?? 0
+          if (L > 0.4 && R > 0.4) passed = true
+        } else if (currentChallenge === "turn_head_left" || currentChallenge === "turn_head_right") {
+          if (results.facialTransformationMatrixes?.length > 0) {
+            const data = results.facialTransformationMatrixes[0].data
+            const yaw = Math.atan2(-data[8], Math.sqrt(data[9] ** 2 + data[10] ** 2)) * 180 / Math.PI
+            if (currentChallenge === "turn_head_left" && yaw < -20) passed = true
+            if (currentChallenge === "turn_head_right" && yaw > 20) passed = true
           }
         }
 
         if (passed) {
           if (holdStartTimeRef.current === 0) {
-            holdStartTimeRef.current = performance.now();
+            holdStartTimeRef.current = performance.now()
           } else {
-            const requiredHoldTime = currentChallenge === "blink" ? 150 : 800;
-            const holdDuration = performance.now() - holdStartTimeRef.current;
-
-            if (holdDuration >= requiredHoldTime) {
-              cooldownRef.current = true;
-              holdStartTimeRef.current = 0;
-
-              const snapshot = captureSnapshot();
-
-              setCapturedSnapshots(prev => {
-                return snapshot ? [...prev, snapshot] : prev;
-              });
-
-              setCurrentChallengeIndex((ci) => {
-                const nextIndex = ci + 1;
-                if (nextIndex < challenges.length) {
-                  setTimeout(() => {
-                    cooldownRef.current = false;
-                  }, 2500);
-                }
-                return nextIndex;
-              });
+            const required = currentChallenge === "blink" ? 150 : 800
+            if (performance.now() - holdStartTimeRef.current >= required) {
+              cooldownRef.current = true
+              holdStartTimeRef.current = 0
+              const snap = captureSnapshot()
+              setCapturedSnapshots(prev => snap ? [...prev, snap] : prev)
+              setCurrentChallengeIndex(ci => {
+                const next = ci + 1
+                if (next < challenges.length) setTimeout(() => { cooldownRef.current = false }, 2500)
+                return next
+              })
             }
           }
         } else {
-          holdStartTimeRef.current = 0;
+          holdStartTimeRef.current = 0
         }
       }
     }
   }
 
   useEffect(() => {
-    if (!landmarker || livenessPassed) return;
+    if (!landmarker || livenessPassed) return
+    let active = true
+    const loop = () => { if (active) { analyzeRef.current(); requestAnimationFrame(loop) } }
+    requestAnimationFrame(loop)
+    return () => { active = false }
+  }, [landmarker, livenessPassed])
 
-    let active = true;
-    const loop = () => {
-      if (active) {
-        analyzeRef.current();
-        requestAnimationFrame(loop);
-      }
-    };
+  const completedCount = currentChallengeIndex
+  const currentChallenge = challenges[currentChallengeIndex]
 
-    requestAnimationFrame(loop);
-
-    return () => {
-      active = false;
-    };
-  }, [landmarker, livenessPassed]);
-
-  const completedCount = currentChallengeIndex;
-
-  // Build the instructions label shown in CameraCapture
-  const getFacePositionLabel = (): ReactNode => {
-    if (isInitializing) return "Loading face detection… This may take up to a minute on a slow connection."
-    if (mpError) return `Face detection could not start: ${mpError.message}`
-    switch (faceStatus) {
-      case "too_far":   return "Move closer to the camera"
-      case "too_close": return "Move back a little"
-      case "off_center": return "Center your face in the circle"
-      case "aligned":   return <span className="text-green-500 font-medium">Face detected ✓</span>
-      default:          return "Center your face in the circle"
+  // Hint pill text
+  const hintText = (): string => {
+    if (isInitializing) return "Loading face detection…"
+    if (mpError) return "Face detection unavailable"
+    if (livenessPassed) return "Liveness check complete ✓"
+    if (!faceAligned) {
+      if (faceStatus === "too_far") return "Move closer"
+      if (faceStatus === "too_close") return "Move back a little"
+      if (faceStatus === "off_center") return "Center your face"
+      return "Look at the camera"
     }
+    if (currentChallenge) return CHALLENGE_LABELS[currentChallenge]
+    return "Hold still…"
   }
 
-  const challengeLabel: ReactNode = challenges[currentChallengeIndex]
-    ? CHALLENGE_LABELS[challenges[currentChallengeIndex]]
-    : livenessPassed
-    ? "Liveness check completed!"
-    : "Preparing camera…"
-
-  // Before liveness challenges start, show face positioning guidance; once running, show challenge
-  const hasStartedChallenges = completedCount > 0 || (faceAligned && challenges.length > 0)
-  const instructions: ReactNode = isInitializing || mpError
-    ? getFacePositionLabel()
-    : livenessPassed
-    ? "Liveness check completed!"
-    : hasStartedChallenges
-    ? challengeLabel
-    : getFacePositionLabel()
+  // Title shown above circle
+  const titleText = livenessPassed
+    ? "All done!"
+    : faceAligned && currentChallenge
+    ? CHALLENGE_LABELS[currentChallenge]
+    : "Center your face"
 
   return (
-    <div className="flex flex-col flex-1 relative">
-      <CameraCapture
-        title="Active Liveness Check"
-        instructions={instructions}
-        onCapture={() => {}}
-        capturedImage={null}
-        overlayType="selfie"
-        videoRef={videoRef}
-        hideControls={true}
-        isFaceDetected={faceAligned && !livenessPassed}
-        isFaceTooClose={faceStatus === "too_close" && !livenessPassed}
-      />
+    <div className="flex flex-col flex-1 bg-(--sv-paper)">
+      {/* Header text */}
+      <div className="px-5 pt-5 pb-3 text-center">
+        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-(--sv-ink) mb-1">
+          {titleText}
+        </h2>
+        <p className="text-[13px] text-(--sv-ink-3) leading-relaxed">
+          {livenessPassed
+            ? "Your liveness check is complete."
+            : "We'll detect motion to confirm it's you. Nothing is stored after."}
+        </p>
+      </div>
 
-      {/* Hidden canvas used to take snapshots */}
+      {/* Circle camera — fills remaining space */}
+      <div className="flex flex-1 flex-col items-center justify-center px-5">
+        <div className="relative w-full max-w-85 aspect-square">
+          {/* Outer ring glow */}
+          <div className={`absolute inset-0 rounded-full transition-all duration-500 ${
+            faceAligned && !livenessPassed
+              ? "shadow-[0_0_0_6px_rgba(44,91,255,0.15)]"
+              : ""
+          }`} />
+
+          {/* Video circle */}
+          <div className="absolute inset-0 rounded-full overflow-hidden bg-[#2a2a3a]">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 h-full w-full object-cover scale-x-[-1]"
+            />
+          </div>
+
+          {/* Ring border */}
+          <div className={`absolute inset-0 rounded-full border-[3px] pointer-events-none transition-all duration-500 ${
+            livenessPassed
+              ? "border-green-500"
+              : faceAligned
+              ? "border-(--sv-brand)"
+              : faceStatus === "too_close"
+              ? "border-amber-400 animate-pulse"
+              : "border-white/30"
+          }`} />
+
+          {/* Challenge icon dot at top */}
+          {faceAligned && currentChallenge && !livenessPassed && (
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-(--sv-brand)" />
+          )}
+        </div>
+
+        {/* Hint pill below circle */}
+        <div className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-full bg-(--sv-card) border border-(--sv-hairline) shadow-sm">
+          {isInitializing && <Loader2 size={14} className="animate-spin text-(--sv-brand) shrink-0" />}
+          {livenessPassed && <CheckCircle2 size={14} className="text-green-500 shrink-0" />}
+          {!isInitializing && !livenessPassed && currentChallenge && CHALLENGE_ICONS[currentChallenge]}
+          <span className="text-[13px] font-medium text-(--sv-ink-2)">{hintText()}</span>
+        </div>
+
+        {/* Progress dots */}
+        {!livenessPassed && challenges.length > 0 && (
+          <div className="mt-4 flex items-center gap-1.5">
+            {challenges.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-400 ${
+                  i < completedCount
+                    ? "w-5 bg-(--sv-ink-2)"
+                    : i === completedCount
+                    ? "w-7 bg-(--sv-brand)"
+                    : "w-5 bg-(--sv-ink-4)"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Hidden canvas for snapshots */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Complete button — shown once all challenges pass */}
-      {livenessPassed && (
-        <div className="absolute bottom-8 left-0 right-0 z-10 flex justify-center px-5">
+      {/* Continue button — only when passed */}
+      <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-4">
+        {livenessPassed ? (
           <button
             type="button"
             onClick={() => void handleComplete()}
-            className="sv-cta sv-cta-primary max-w-sm"
+            className="w-full h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
           >
-            <CheckCircle2 size={20} />
-            Continue to submit
-          </button>
-        </div>
-      )}
-
-      {/* Challenge progress bar */}
-      <div className="absolute bottom-28 left-0 right-0 z-10 flex justify-center pointer-events-none px-5">
-        <div className="sv-challenge-bar">
-          {isInitializing ? (
-            <Loader2 size={18} className="animate-spin text-(--sv-brand)" />
-          ) : livenessPassed ? (
-            <CheckCircle2 size={18} className="text-green-500" />
-          ) : (
-            <div className="sv-dots">
-              {challenges.map((_, i) => (
-                <div
-                  key={i}
-                  className={`sv-dot ${
-                    i < completedCount ? "done" : i === completedCount ? "active" : ""
-                  }`}
-                />
-              ))}
+            <span>Continue to submit</span>
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+              <ArrowRight size={16} />
             </div>
-          )}
-          <span className="text-sm font-medium text-(--sv-ink)">
-            {livenessPassed
-              ? "Completed ✓"
-              : isInitializing
-              ? "Loading face detection…"
-              : challenges.length > 0
-                ? `Step ${Math.min(completedCount + 1, challenges.length)} of ${challenges.length}`
-                : "Preparing…"}
-          </span>
-        </div>
+          </button>
+        ) : (
+          <div className="h-14" /> // spacer to keep layout stable
+        )}
       </div>
     </div>
   )

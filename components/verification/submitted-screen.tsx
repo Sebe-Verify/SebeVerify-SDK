@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, ArrowRight, Lock } from "lucide-react"
+import { ArrowRight, Check } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 
 interface SubmittedScreenProps {
@@ -8,92 +8,75 @@ interface SubmittedScreenProps {
   returnUrl?: string
 }
 
+function generateRef() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"
+  let s = "SV-"
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)]
+  return s
+}
+
 export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps) {
-  const { documentType, submittedAt } = useVerificationStore()
+  const { submittedAt } = useVerificationStore()
 
   const handleDone = () => {
-    if (onComplete) {
-      onComplete()
-    } else if (returnUrl) {
-      window.location.href = returnUrl
-    } else if (window.history.length > 1) {
-      window.history.back()
-    } else {
-      window.location.href = '/'
-    }
+    if (onComplete) onComplete()
+    else if (returnUrl) window.location.href = returnUrl
+    else if (window.history.length > 1) window.history.back()
+    else window.location.href = "/"
   }
 
-  const getDocumentLabel = () => {
-    switch (documentType) {
-      case 'passport': return 'Passport'
-      case 'national_id': return 'National ID'
-      case 'driver_license': return "Driver's License"
-      default: return 'Document'
-    }
+  const formatVerifiedDate = (iso: string | null) => {
+    const d = iso ? new Date(iso) : new Date()
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) +
+      " · " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
   }
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Just now'
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: 'numeric', minute: '2-digit', hour12: true,
-    })
-  }
+  const ref = generateRef()
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center px-6 py-10">
-      {/* Icon */}
-      <div className="sv-success-icon-wrap mb-6 animate-in zoom-in duration-300">
-        <div className="sv-success-halo sv-success-halo-1" />
-        <div className="sv-success-halo sv-success-halo-2" />
-        <div className="sv-success-icon-core">
-          <Clock size={26} strokeWidth={1.75} />
+    <div className="flex flex-col flex-1 items-center justify-center bg-(--sv-paper) px-6">
+      {/* Success icon */}
+      <div className="relative w-24 h-24 mb-6 animate-in zoom-in duration-300">
+        {/* Outer halo */}
+        <div className="absolute inset-0 rounded-full bg-(--sv-brand-soft) opacity-50" />
+        {/* Inner halo */}
+        <div className="absolute inset-3 rounded-full bg-(--sv-brand-soft) opacity-70" />
+        {/* Core */}
+        <div className="absolute inset-4.5 rounded-full bg-(--sv-brand) flex items-center justify-center shadow-[0_4px_20px_rgba(44,91,255,0.35)]">
+          <Check size={22} color="white" strokeWidth={2.5} />
         </div>
       </div>
 
-      <h1 className="mb-2 text-balance text-center text-[22px] font-semibold tracking-tight text-(--sv-ink)">
-        Verification in progress
+      <h1 className="text-[30px] font-bold tracking-tight text-(--sv-ink) mb-2 text-center">
+        You&apos;re verified.
       </h1>
-      <p className="mb-8 max-w-sm text-center text-sm leading-relaxed text-(--sv-ink-3)">
-        Your documents have been submitted successfully. We&apos;ll notify you once the review is complete.
+      <p className="text-[14px] text-(--sv-ink-3) text-center mb-8 max-w-xs leading-relaxed">
+        All set. A copy of your receipt is in your inbox.
       </p>
 
-      {/* Receipt card */}
-      <div className="sv-receipt mb-6 w-full max-w-sm">
-        <div className="sv-receipt-row">
-          <span className="sv-receipt-label">Status</span>
-          <span className="sv-receipt-value brand flex items-center gap-1.5">
-            <Clock size={13} />
-            Under Review
-          </span>
+      {/* Receipt */}
+      <div className="w-full max-w-sm rounded-2xl border border-(--sv-hairline) bg-(--sv-card) overflow-hidden shadow-(--sv-shadow-card) mb-8">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-(--sv-hairline-2)">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-(--sv-ink-4)">Reference</span>
+          <span className="text-[14px] font-semibold text-(--sv-ink)">{ref}</span>
         </div>
-        <div className="sv-receipt-row">
-          <span className="sv-receipt-label">Document</span>
-          <span className="sv-receipt-value">{getDocumentLabel()}</span>
-        </div>
-        <div className="sv-receipt-row">
-          <span className="sv-receipt-label">Submitted</span>
-          <span className="sv-receipt-value">{formatDate(submittedAt)}</span>
-        </div>
-        <div className="sv-receipt-row">
-          <span className="sv-receipt-label">Review time</span>
-          <span className="sv-receipt-value">1–2 business days</span>
+        <div className="flex items-center justify-between px-4 py-3.5">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-(--sv-ink-4)">Verified</span>
+          <span className="text-[14px] font-semibold text-(--sv-ink)">{formatVerifiedDate(submittedAt)}</span>
         </div>
       </div>
 
+      {/* CTA */}
       <button
         type="button"
         onClick={handleDone}
-        className="sv-cta sv-cta-primary w-full max-w-sm"
+        className="w-full max-w-sm h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
       >
-        Done
-        <ArrowRight size={18} />
+        <span>Continue</span>
+        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+          <ArrowRight size={16} />
+        </div>
       </button>
-
-      <p className="mt-6 flex max-w-xs items-center justify-center gap-1.5 text-center text-xs text-(--sv-ink-4)">
-        <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        Your data is encrypted and securely stored.
-      </p>
     </div>
   )
 }
