@@ -1,23 +1,27 @@
 "use client"
 
-import { CreditCard, BookOpen, Car, ChevronRight } from "lucide-react"
+import { CreditCard, BookOpen, ChevronRight } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 import type { DocumentType } from "@/lib/verification-store"
-import { cn } from "@/lib/utils"
 
-const documentTypes: { type: DocumentType; label: string; icon: typeof CreditCard; description: string }[] = [
+const documentTypes: {
+  type: DocumentType
+  label: string
+  description: string
+  Icon: typeof CreditCard
+}[] = [
   {
     type: 'national_id',
     label: 'National ID Card',
-    icon: CreditCard,
-    description: 'Government-issued national identity card'
+    description: 'Government-issued national identity card',
+    Icon: CreditCard,
   },
   {
     type: 'passport',
     label: 'Passport',
-    icon: BookOpen,
-    description: 'International travel document'
-  }
+    description: 'International travel document',
+    Icon: BookOpen,
+  },
 ]
 
 export function DocumentTypeSelector() {
@@ -29,46 +33,50 @@ export function DocumentTypeSelector() {
   }
 
   return (
-    <div className="flex flex-col flex-1 px-6 py-6">
-      <div className="mb-6">
-        <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">
-          Select document type
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '28px 20px' }}>
+      <div style={{ marginBottom: 28 }}>
+        <div className="sv-step-pill" style={{ marginBottom: 16 }}>
+          <span className="sv-step-pill-num">1</span>
+          Document
+        </div>
+
+        <h1 className="sv-display" style={{ marginBottom: 8 }}>
+          Choose document type
         </h1>
-        <p className="text-muted-foreground">
-          Choose the type of document you want to use for verification.
+        <p className="sv-lede">
+          Select the ID you have on hand. Make sure it&apos;s valid and unexpired.
         </p>
       </div>
 
-      <div className="space-y-3">
-        {documentTypes.map((doc) => (
+      <div className="sv-doc-list">
+        {documentTypes.map(({ type, label, description, Icon }) => (
           <button
-            key={doc.type}
-            onClick={() => handleSelect(doc.type)}
-            className={cn(
-              "flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-all",
-              "hover:border-primary hover:bg-primary/5",
-              documentType === doc.type
-                ? "border-primary bg-primary/5"
-                : "border-border bg-card"
-            )}
+            key={type}
+            type="button"
+            onClick={() => handleSelect(type)}
+            className={`sv-doc-row${documentType === type ? ' active' : ''}`}
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <doc.icon className="h-6 w-6 text-primary" />
+            <div className="sv-doc-art">
+              <Icon size={26} color="var(--sv-brand)" strokeWidth={1.5} />
             </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-medium text-foreground">{doc.label}</h3>
-              <p className="truncate text-sm text-muted-foreground">{doc.description}</p>
+            <div>
+              <div className="sv-doc-title">{label}</div>
+              <div className="sv-doc-sub">{description}</div>
             </div>
-            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <ChevronRight size={16} color="var(--sv-ink-4)" />
           </button>
         ))}
       </div>
 
-      <div className="mt-auto pt-8">
-        <p className="text-xs text-center text-muted-foreground">
-          Make sure your document is valid and not expired
-        </p>
-      </div>
+      <p style={{
+        marginTop: 'auto',
+        paddingTop: 24,
+        textAlign: 'center',
+        fontSize: 12,
+        color: 'var(--sv-ink-4)',
+      }}>
+        Your document data is encrypted in transit
+      </p>
     </div>
   )
 }

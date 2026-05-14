@@ -14,7 +14,7 @@ interface UseDocumentDetectionOptions {
 const ANALYSIS_LONG_EDGE = 360
 const TARGET_FPS = 10
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS
-const STABILITY_MS = 350
+const STABILITY_MS = 500
 
 // Sobel kernels
 const KX = [-1, 0, 1, -2, 0, 2, -1, 0, 1]
@@ -91,26 +91,27 @@ function checkDocument(
   const leftD   = leftN   ? leftStrong   / leftN   : 0
   const rightD  = rightN  ? rightStrong  / rightN  : 0
 
-  // ALL four sides must show at least minimal edge activity (>2%) — this rules
+  // ALL four sides must show at least minimal edge activity (>3%) — this rules
   // out a side being entirely outside the frame. The "strong" side threshold
-  // (>4%) lets the others be partially occluded so long as none is missing.
+  // (>6%) lets the others be partially occluded so long as none is missing.
   const allFourPresent =
-    topD > 0.02 && bottomD > 0.02 && leftD > 0.02 && rightD > 0.02
-  const sidesStrong = [topD, bottomD, leftD, rightD].filter((d) => d > 0.04).length
+    topD > 0.03 && bottomD > 0.03 && leftD > 0.03 && rightD > 0.03
+  const sidesStrong = [topD, bottomD, leftD, rightD].filter((d) => d > 0.06).length
   const edgesOk = allFourPresent && sidesStrong >= 3
 
-  // Sharpness sanity check: variance in the inner 60% of the guide
+  // Inner zone: shared rect for sharpness + uniformity checks (inner 60% of guide)
   const cx1 = gx + Math.round(gw * 0.20)
   const cx2 = gx + Math.round(gw * 0.80)
   const cy1 = gy + Math.round(gh * 0.20)
   const cy2 = gy + Math.round(gh * 0.80)
-  let sum = 0, sumSq = 0, count = 0
+  let sum = 0, sumSq = 0, count = 0, innerEdgeSum = 0
   for (let py = cy1; py < cy2; py++) {
     for (let px = cx1; px < cx2; px++) {
       const idx = (py * w + px) * 4
       const lum = pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114
       sum += lum
       sumSq += lum * lum
+      innerEdgeSum += edges[py * w + px]
       count++
     }
   }
@@ -118,7 +119,17 @@ function checkDocument(
   const variance = count > 0 ? sumSq / count - mean * mean : 0
   const sharpnessOk = variance > 30
 
-  return edgesOk && sharpnessOk
+  // Uniformity guard: a real document has a flat interior — inner edge density
+  // must be significantly lower than the perimeter band average. A cluttered desk
+  // has equally busy inner and outer zones, so this rejects false positives.
+  const innerEdgeDensity = count > 0 ? innerEdgeSum / count : 0
+  const outerEdgeMean = (topD + bottomD + leftD + rightD) / 4
+  // outerEdgeMean is a ratio (0–1), innerEdgeDensity is absolute (0–255 range).
+  // Normalise inner density to the same 0–1 scale using threshold as reference.
+  const innerDensityNorm = innerEdgeDensity / 255
+  const uniformityOk = innerDensityNorm < outerEdgeMean * 0.85
+
+  return edgesOk && sharpnessOk && uniformityOk
 }
 
 /**

@@ -31,6 +31,7 @@ interface CameraCaptureProps {
   videoRef?: React.RefObject<HTMLVideoElement | null>
   hideControls?: boolean
   isFaceDetected?: boolean
+  isFaceTooClose?: boolean
 }
 
 export function CameraCapture({
@@ -44,6 +45,7 @@ export function CameraCapture({
   videoRef: externalVideoRef,
   hideControls = false,
   isFaceDetected = false,
+  isFaceTooClose = false,
 }: CameraCaptureProps) {
   const internalVideoRef = useRef<HTMLVideoElement>(null)
   const videoRef = externalVideoRef || internalVideoRef
@@ -319,7 +321,7 @@ export function CameraCapture({
             "relative w-full overflow-hidden rounded-2xl bg-black",
             overlayType === "selfie"
               ? "aspect-square max-w-md"
-              : "min-h-[300px] flex-1",
+              : "aspect-3/4 max-h-[70svh] w-full",
           )}
         >
           {capturedImage ? (
@@ -389,6 +391,8 @@ export function CameraCapture({
                       "h-[85%] w-[85%] rounded-full transition-all duration-500",
                       isFaceDetected
                         ? "border-[3px] border-solid border-green-500 shadow-[0_0_0_4px_rgba(34,197,94,0.2)]"
+                        : isFaceTooClose
+                        ? "border-[3px] border-solid border-amber-400 animate-pulse"
                         : "border-[3px] border-dashed border-white/70"
                     )}
                   />

@@ -1,70 +1,134 @@
 "use client";
 
 import { ShieldCheck, Lock, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useVerificationStore } from "@/lib/verification-store";
-
-const trustBadges = [
-  { icon: Lock, label: "Encrypted" },
-  { icon: ShieldCheck, label: "GDPR compliant" },
-  { icon: Clock, label: "~2 minutes" },
-] as const;
 
 export function IntroScreen() {
   const setStep = useVerificationStore((state) => state.setStep);
 
-  const goToDocSelect = () => {
-    setStep("doc-select");
-  };
-
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <div className="flex flex-1 flex-col items-center px-6 pb-6 pt-10 text-center">
-        <div
-          className="mb-10 flex items-center justify-center gap-2"
-          role="presentation"
-          aria-label="Step 1 of 2"
-        >
-          <span className="h-1.5 w-10 rounded-full bg-primary" />
-          <span className="h-1.5 w-10 rounded-full bg-muted" />
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+      {/* Welcome art area */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '40px 28px 24px',
+        textAlign: 'center',
+      }}>
+        {/* Illustration */}
+        <div style={{
+          width: 112,
+          height: 112,
+          borderRadius: '28px',
+          background: 'var(--sv-brand-soft)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 28,
+          boxShadow: '0 0 0 16px rgba(44,91,255,0.05)',
+        }}>
+          <ShieldCheck size={52} color="var(--sv-brand)" strokeWidth={1.5} />
         </div>
 
-        <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-          <ShieldCheck className="h-7 w-7 text-primary" aria-hidden />
-        </div>
-
-        <h1 className="mb-3 max-w-[18rem] text-2xl font-semibold tracking-tight text-foreground">
+        <h1 className="sv-display" style={{ marginBottom: 12, maxWidth: 280 }}>
           Verify your identity
         </h1>
 
-        <p className="max-w-xs text-base leading-relaxed text-muted-foreground">
+        <p className="sv-lede" style={{ maxWidth: 280 }}>
           A quick, secure check to protect your account and prevent fraud.
         </p>
-      </div>
 
-      <div className="mt-auto w-full border-t border-border/40 bg-background px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
-        <Button
-          type="button"
-          size="xl"
-          onClick={goToDocSelect}
-          className="w-full touch-manipulation shadow-sm"
-        >
-          Start verification
-        </Button>
-
-        <div className="mt-5 flex items-center justify-center gap-5">
-          {trustBadges.map(({ icon: Icon, label }) => (
-            <span
-              key={label}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground"
-            >
-              <Icon className="h-3.5 w-3.5" aria-hidden />
-              {label}
-            </span>
+        {/* Step pills */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          marginTop: 32,
+          width: '100%',
+          maxWidth: 320,
+        }}>
+          {[
+            { num: '1', label: 'Scan your document' },
+            { num: '2', label: 'Take a selfie' },
+            { num: '3', label: 'Submit for review' },
+          ].map(({ num, label }) => (
+            <div key={num} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '10px 14px',
+              background: 'var(--sv-card)',
+              borderRadius: 'var(--sv-radius-sm)',
+              border: '1px solid var(--sv-hairline)',
+              boxShadow: 'var(--sv-shadow-card)',
+            }}>
+              <div style={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                background: 'var(--sv-brand)',
+                color: '#fff',
+                fontFamily: "'Geist Mono', monospace",
+                fontSize: 11,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {num}
+              </div>
+              <span style={{ fontSize: 14, color: 'var(--sv-ink-2)', fontWeight: 500 }}>
+                {label}
+              </span>
+            </div>
           ))}
         </div>
+      </div>
 
-        <p className="mt-4 text-center text-xs text-muted-foreground">
+      {/* Bottom action area */}
+      <div style={{
+        padding: '16px 24px',
+        paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+        borderTop: '1px solid var(--sv-hairline-2)',
+        background: 'rgba(250,250,246,0.9)',
+        backdropFilter: 'blur(8px)',
+      }}>
+        <button
+          type="button"
+          onClick={() => setStep("doc-select")}
+          className="sv-cta sv-cta-primary"
+        >
+          Start verification
+        </button>
+
+        <div className="sv-trust-row" style={{ marginTop: 16 }}>
+          <span className="sv-trust-chip">
+            <Lock size={13} />
+            Encrypted
+          </span>
+          <span className="sv-trust-chip">
+            <ShieldCheck size={13} />
+            GDPR compliant
+          </span>
+          <span className="sv-trust-chip">
+            <Clock size={13} />
+            ~2 minutes
+          </span>
+        </div>
+
+        <p style={{
+          marginTop: 12,
+          textAlign: 'center',
+          fontSize: 11,
+          color: 'var(--sv-ink-4)',
+          letterSpacing: '0.02em',
+          textTransform: 'uppercase',
+          fontFamily: "'Geist Mono', monospace",
+        }}>
           Powered by SebeVerify
         </p>
       </div>

@@ -1,57 +1,74 @@
 "use client"
 
 import { Info } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { useVerificationStore } from "@/lib/verification-store"
 
 const tips = [
   "Place your ID on a flat surface",
-  "Use good lighting",
+  "Use good, even lighting",
   "Avoid glare and shadows",
-  "Keep all corners visible",
+  "Keep all four corners visible",
 ] as const
 
 export function CameraAccessScreen() {
   const setStep = useVerificationStore((s) => s.setStep)
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-background px-6 pb-6 pt-1">
-      <div className="flex flex-1 flex-col text-left">
-        <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">
-          Take a photo of your ID
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '28px 20px' }}>
+      <div style={{ flex: 1 }}>
+        <div className="sv-step-pill" style={{ marginBottom: 16 }}>
+          <span className="sv-step-pill-num">2</span>
+          Scan ID
+        </div>
+
+        <h1 className="sv-display" style={{ marginBottom: 8 }}>
+          Prepare your document
         </h1>
-        <p className="mb-8 text-base text-muted-foreground">
-          Make sure all details are clear and readable.
+        <p className="sv-lede" style={{ marginBottom: 28 }}>
+          For best results, follow the tips below before opening the camera.
         </p>
 
-        <ul className="mb-10 space-y-3 text-base text-muted-foreground">
-          {tips.map((item) => (
-            <li key={item} className="flex gap-3 leading-relaxed">
-              <span
-                className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground"
-                aria-hidden
-              />
-              <span>{item}</span>
+        <ul className="sv-prep-list">
+          {tips.map((tip, i) => (
+            <li key={tip} className="sv-prep-item">
+              <span className="sv-prep-num">{i + 1}</span>
+              <span>{tip}</span>
             </li>
           ))}
         </ul>
 
-        <div className="mt-auto flex items-start gap-3 rounded-xl border border-border/60 bg-muted/40 px-4 py-3 text-sm leading-snug text-muted-foreground">
-          <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-          <p>We&apos;ll need access to your camera to continue</p>
+        <div style={{
+          marginTop: 16,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 10,
+          padding: '12px 14px',
+          borderRadius: 'var(--sv-radius-sm)',
+          background: 'var(--sv-brand-soft)',
+          border: '1px solid rgba(44,91,255,0.15)',
+          fontSize: 13,
+          color: 'var(--sv-brand-ink)',
+          lineHeight: 1.45,
+        }}>
+          <Info size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>We&apos;ll request camera access when you continue</span>
         </div>
       </div>
 
-      <div className="shrink-0 space-y-6 pt-8">
-        <Button
+      <div style={{
+        paddingTop: 24,
+        paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+      }}>
+        <button
           type="button"
           onClick={() => setStep("id-front")}
-          className="w-full touch-manipulation shadow-sm"
-          size="xl"
+          className="sv-cta sv-cta-primary"
         >
-          Enable camera
-        </Button>
-        <p className="text-center text-xs text-muted-foreground">Powered by SebeVerify</p>
+          Open camera
+        </button>
+        <p style={{ marginTop: 12, textAlign: 'center', fontSize: 11, color: 'var(--sv-ink-4)', fontFamily: "'Geist Mono', monospace", letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+          Powered by SebeVerify
+        </p>
       </div>
     </div>
   )

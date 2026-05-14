@@ -78,7 +78,7 @@ function VerificationFlowInner({
   };
 
   return (
-    <div className="flex flex-col min-h-dvh bg-background">
+    <div className="sv-app">
       <StepHeader onClose={onClose} stepTitle={STEP_TITLES[currentStep]} />
       <ProgressBar currentStep={currentStep} />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">

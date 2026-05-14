@@ -285,6 +285,7 @@ export function SelfieCapture() {
         videoRef={videoRef}
         hideControls={true}
         isFaceDetected={faceAligned && !livenessPassed}
+        isFaceTooClose={faceStatus === "too_close" && !livenessPassed}
       />
 
       {/* Hidden canvas used to take snapshots */}
@@ -306,7 +307,7 @@ export function SelfieCapture() {
       )}
 
       {/* Challenge progress overlay */}
-      <div className="absolute top-28 left-0 right-0 flex justify-center pointer-events-none z-10">
+      <div className="absolute bottom-28 left-0 right-0 flex justify-center pointer-events-none z-10">
         <div className="bg-background/95 backdrop-blur-sm px-4 py-2.5 rounded-xl flex items-center gap-3 border border-border shadow-sm">
           {isInitializing ? (
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
