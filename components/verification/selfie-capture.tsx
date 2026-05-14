@@ -34,6 +34,8 @@ export function SelfieCapture() {
   // Face positioning state
   const [faceAligned, setFaceAligned] = useState(false)
   const [faceStatus, setFaceStatus] = useState<"none" | "too_far" | "too_close" | "off_center" | "aligned">("none")
+  // Synchronously-readable mirror of faceAligned for the rAF loop (state lags by a frame)
+  const faceAlignedRef = useRef(false)
 
   useEffect(() => {
     const shuffled = [...ALL_CHALLENGES].sort(() => 0.5 - Math.random())
@@ -139,6 +141,7 @@ export function SelfieCapture() {
 
         const aligned = centered && goodSize && fullyIn
         setFaceAligned(aligned)
+        faceAlignedRef.current = aligned
 
         if (aligned) {
           setFaceStatus("aligned")
@@ -153,11 +156,16 @@ export function SelfieCapture() {
         }
       } else {
         setFaceAligned(false)
+        faceAlignedRef.current = false
         setFaceStatus("none")
       }
       // ────────────────────────────────────────────────────────────────────────
 
-      if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+      // Only allow a challenge to pass while the face is properly framed in the circle.
+      // Drifting out of frame resets the hold timer too — so partial holds don't carry over.
+      if (!faceAlignedRef.current) {
+        holdStartTimeRef.current = 0
+      } else if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
         const shapes: Category[] = results.faceBlendshapes[0].categories;
         const currentChallenge = challenges[currentChallengeIndex];
         let passed = false;

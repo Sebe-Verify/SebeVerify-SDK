@@ -91,10 +91,13 @@ function checkDocument(
   const leftD   = leftN   ? leftStrong   / leftN   : 0
   const rightD  = rightN  ? rightStrong  / rightN  : 0
 
-  // Each side needs ≥3% strong-edge pixels — very permissive.
-  // At least 3 of the 4 sides must pass (one weak side can be a corner being clipped).
-  const sidesPassing = [topD, bottomD, leftD, rightD].filter((d) => d > 0.03).length
-  const edgesOk = sidesPassing >= 3
+  // ALL four sides must show at least minimal edge activity (>2%) — this rules
+  // out a side being entirely outside the frame. The "strong" side threshold
+  // (>4%) lets the others be partially occluded so long as none is missing.
+  const allFourPresent =
+    topD > 0.02 && bottomD > 0.02 && leftD > 0.02 && rightD > 0.02
+  const sidesStrong = [topD, bottomD, leftD, rightD].filter((d) => d > 0.04).length
+  const edgesOk = allFourPresent && sidesStrong >= 3
 
   // Sharpness sanity check: variance in the inner 60% of the guide
   const cx1 = gx + Math.round(gw * 0.20)
