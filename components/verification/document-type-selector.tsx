@@ -33,14 +33,14 @@ export function DocumentTypeSelector() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '28px 20px' }}>
-      <div style={{ marginBottom: 28 }}>
-        <div className="sv-step-pill" style={{ marginBottom: 16 }}>
+    <div className="flex flex-col flex-1 px-5 py-7">
+      <div className="mb-7">
+        <div className="sv-step-pill mb-4">
           <span className="sv-step-pill-num">1</span>
           Document
         </div>
 
-        <h1 className="sv-display" style={{ marginBottom: 8 }}>
+        <h1 className="sv-display mb-2">
           Choose document type
         </h1>
         <p className="sv-lede">
@@ -68,13 +68,7 @@ export function DocumentTypeSelector() {
         ))}
       </div>
 
-      <p style={{
-        marginTop: 'auto',
-        paddingTop: 24,
-        textAlign: 'center',
-        fontSize: 12,
-        color: 'var(--sv-ink-4)',
-      }}>
+      <p className="mt-auto pt-6 text-center text-xs text-(--sv-ink-4)">
         Your document data is encrypted in transit
       </p>
     </div>

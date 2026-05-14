@@ -1,7 +1,6 @@
 "use client"
 
-import { Clock, Bell, ArrowRight, Lock } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Clock, ArrowRight, Lock } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 
 interface SubmittedScreenProps {
@@ -14,13 +13,13 @@ export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps)
 
   const handleDone = () => {
     if (onComplete) {
-      onComplete();
+      onComplete()
     } else if (returnUrl) {
-      window.location.href = returnUrl;
+      window.location.href = returnUrl
     } else if (window.history.length > 1) {
-      window.history.back();
+      window.history.back()
     } else {
-      window.location.href = '/';
+      window.location.href = '/'
     }
   }
 
@@ -35,78 +34,63 @@ export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps)
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Just now'
-    const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
+    return new Date(dateString).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
     })
   }
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center px-6 py-8">
-      <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 animate-in zoom-in duration-300">
-        <Clock className="h-12 w-12 text-primary" />
+    <div className="flex flex-col flex-1 items-center justify-center px-6 py-10">
+      {/* Icon */}
+      <div className="sv-success-icon-wrap mb-6 animate-in zoom-in duration-300">
+        <div className="sv-success-halo sv-success-halo-1" />
+        <div className="sv-success-halo sv-success-halo-2" />
+        <div className="sv-success-icon-core">
+          <Clock size={26} strokeWidth={1.75} />
+        </div>
       </div>
-      
-      <h1 className="mb-2 text-balance text-center text-2xl font-semibold tracking-tight text-foreground">
+
+      <h1 className="mb-2 text-balance text-center text-[22px] font-semibold tracking-tight text-(--sv-ink)">
         Verification in progress
       </h1>
-      
-      <p className="text-muted-foreground text-center mb-8 max-w-sm text-pretty">
-        Your documents have been submitted successfully. Our team will review your information and notify you once the verification is complete.
+      <p className="mb-8 max-w-sm text-center text-sm leading-relaxed text-(--sv-ink-3)">
+        Your documents have been submitted successfully. We&apos;ll notify you once the review is complete.
       </p>
 
-      <div className="w-full max-w-sm p-4 rounded-xl bg-card border border-border mb-6">
-        <h3 className="text-sm font-medium text-foreground mb-3">Submission Details</h3>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Status</span>
-            <span className="text-sm font-medium text-primary flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
-              Under Review
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Document</span>
-            <span className="text-sm font-medium text-foreground">{getDocumentLabel()}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Submitted</span>
-            <span className="text-sm font-medium text-foreground">{formatDate(submittedAt)}</span>
-          </div>
+      {/* Receipt card */}
+      <div className="sv-receipt mb-6 w-full max-w-sm">
+        <div className="sv-receipt-row">
+          <span className="sv-receipt-label">Status</span>
+          <span className="sv-receipt-value brand flex items-center gap-1.5">
+            <Clock size={13} />
+            Under Review
+          </span>
+        </div>
+        <div className="sv-receipt-row">
+          <span className="sv-receipt-label">Document</span>
+          <span className="sv-receipt-value">{getDocumentLabel()}</span>
+        </div>
+        <div className="sv-receipt-row">
+          <span className="sv-receipt-label">Submitted</span>
+          <span className="sv-receipt-value">{formatDate(submittedAt)}</span>
+        </div>
+        <div className="sv-receipt-row">
+          <span className="sv-receipt-label">Review time</span>
+          <span className="sv-receipt-value">1–2 business days</span>
         </div>
       </div>
 
-      <div className="w-full max-w-sm p-4 rounded-xl bg-muted/50 border border-border mb-8">
-        <div className="flex items-start gap-3">
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Bell className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <h4 className="text-sm font-medium text-foreground mb-1">What happens next?</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              You will receive a notification once your verification is complete. This typically takes 1-2 business days.
-            </p>
-          </div>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={handleDone}
+        className="sv-cta sv-cta-primary w-full max-w-sm"
+      >
+        Done
+        <ArrowRight size={18} />
+      </button>
 
-      <div className="w-full max-w-sm space-y-3">
-        <Button
-          onClick={handleDone}
-          size="xl"
-          className="w-full"
-        >
-          Done
-          <ArrowRight className="h-5 w-5" />
-        </Button>
-      </div>
-
-      <p className="mt-6 flex max-w-xs items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+      <p className="mt-6 flex max-w-xs items-center justify-center gap-1.5 text-center text-xs text-(--sv-ink-4)">
         <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
         Your data is encrypted and securely stored.
       </p>

@@ -6,7 +6,6 @@ import { CameraCapture } from "./camera-capture"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
 import { Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right";
 const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"];
@@ -293,43 +292,38 @@ export function SelfieCapture() {
 
       {/* Complete button — shown once all challenges pass */}
       {livenessPassed && (
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center z-10 px-6">
-          <Button
+        <div className="absolute bottom-8 left-0 right-0 z-10 flex justify-center px-5">
+          <button
             type="button"
             onClick={() => void handleComplete()}
-            className="h-14 w-full max-w-sm rounded-xl text-base font-semibold"
-            size="lg"
+            className="sv-cta sv-cta-primary max-w-sm"
           >
-            <CheckCircle2 className="w-5 h-5" />
+            <CheckCircle2 size={20} />
             Continue to submit
-          </Button>
+          </button>
         </div>
       )}
 
-      {/* Challenge progress overlay */}
-      <div className="absolute bottom-28 left-0 right-0 flex justify-center pointer-events-none z-10">
-        <div className="bg-background/95 backdrop-blur-sm px-4 py-2.5 rounded-xl flex items-center gap-3 border border-border shadow-sm">
+      {/* Challenge progress bar */}
+      <div className="absolute bottom-28 left-0 right-0 z-10 flex justify-center pointer-events-none px-5">
+        <div className="sv-challenge-bar">
           {isInitializing ? (
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <Loader2 size={18} className="animate-spin text-(--sv-brand)" />
           ) : livenessPassed ? (
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
+            <CheckCircle2 size={18} className="text-green-500" />
           ) : (
-            <div className="flex gap-1.5">
+            <div className="sv-dots">
               {challenges.map((_, i) => (
                 <div
                   key={i}
-                  className={`h-1.5 w-8 rounded-full transition-all duration-500 ${
-                    i < completedCount
-                      ? "bg-green-500"
-                      : i === completedCount
-                      ? "bg-primary"
-                      : "bg-border"
+                  className={`sv-dot ${
+                    i < completedCount ? "done" : i === completedCount ? "active" : ""
                   }`}
                 />
               ))}
             </div>
           )}
-          <span className="font-medium text-sm text-foreground">
+          <span className="text-sm font-medium text-(--sv-ink)">
             {livenessPassed
               ? "Completed ✓"
               : isInitializing

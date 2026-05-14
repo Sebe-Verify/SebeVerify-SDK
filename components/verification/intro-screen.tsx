@@ -7,96 +7,44 @@ export function IntroScreen() {
   const setStep = useVerificationStore((state) => state.setStep);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div className="flex flex-col flex-1">
       {/* Welcome art area */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px 28px 24px',
-        textAlign: 'center',
-      }}>
+      <div className="flex flex-1 flex-col items-center justify-center px-7 pb-6 pt-10 text-center">
         {/* Illustration */}
-        <div style={{
-          width: 112,
-          height: 112,
-          borderRadius: '28px',
-          background: 'var(--sv-brand-soft)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 28,
-          boxShadow: '0 0 0 16px rgba(44,91,255,0.05)',
-        }}>
+        <div className="mb-7 flex h-28 w-28 items-center justify-center rounded-[28px] bg-(--sv-brand-soft) shadow-[0_0_0_16px_rgba(44,91,255,0.05)]">
           <ShieldCheck size={52} color="var(--sv-brand)" strokeWidth={1.5} />
         </div>
 
-        <h1 className="sv-display" style={{ marginBottom: 12, maxWidth: 280 }}>
+        <h1 className="sv-display mb-3 max-w-70">
           Verify your identity
         </h1>
 
-        <p className="sv-lede" style={{ maxWidth: 280 }}>
+        <p className="sv-lede max-w-70">
           A quick, secure check to protect your account and prevent fraud.
         </p>
 
-        {/* Step pills */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          marginTop: 32,
-          width: '100%',
-          maxWidth: 320,
-        }}>
+        {/* Step rows */}
+        <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
           {[
             { num: '1', label: 'Scan your document' },
             { num: '2', label: 'Take a selfie' },
             { num: '3', label: 'Submit for review' },
           ].map(({ num, label }) => (
-            <div key={num} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 14px',
-              background: 'var(--sv-card)',
-              borderRadius: 'var(--sv-radius-sm)',
-              border: '1px solid var(--sv-hairline)',
-              boxShadow: 'var(--sv-shadow-card)',
-            }}>
-              <div style={{
-                width: 24,
-                height: 24,
-                borderRadius: '50%',
-                background: 'var(--sv-brand)',
-                color: '#fff',
-                fontFamily: "'Geist Mono', monospace",
-                fontSize: 11,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}>
+            <div
+              key={num}
+              className="flex items-center gap-3 rounded-(--sv-radius-sm) border border-(--sv-hairline) bg-(--sv-card) px-3.5 py-2.5 shadow-(--sv-shadow-card)"
+            >
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-(--sv-brand) font-mono text-[11px] font-semibold text-white">
                 {num}
               </div>
-              <span style={{ fontSize: 14, color: 'var(--sv-ink-2)', fontWeight: 500 }}>
-                {label}
-              </span>
+              <span className="text-sm font-medium text-(--sv-ink-2)">{label}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Bottom action area */}
-      <div style={{
-        padding: '16px 24px',
-        paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
-        borderTop: '1px solid var(--sv-hairline-2)',
-        background: 'rgba(250,250,246,0.9)',
-        backdropFilter: 'blur(8px)',
-      }}>
+      <div className="border-t border-(--sv-hairline-2) bg-[rgba(250,250,246,0.9)] px-6 pb-[max(20px,env(safe-area-inset-bottom))] pt-4 backdrop-blur-sm">
         <button
           type="button"
           onClick={() => setStep("doc-select")}
@@ -105,7 +53,7 @@ export function IntroScreen() {
           Start verification
         </button>
 
-        <div className="sv-trust-row" style={{ marginTop: 16 }}>
+        <div className="sv-trust-row mt-4">
           <span className="sv-trust-chip">
             <Lock size={13} />
             Encrypted
@@ -120,15 +68,7 @@ export function IntroScreen() {
           </span>
         </div>
 
-        <p style={{
-          marginTop: 12,
-          textAlign: 'center',
-          fontSize: 11,
-          color: 'var(--sv-ink-4)',
-          letterSpacing: '0.02em',
-          textTransform: 'uppercase',
-          fontFamily: "'Geist Mono', monospace",
-        }}>
+        <p className="mt-3 text-center font-mono text-[11px] uppercase tracking-wide text-(--sv-ink-4)">
           Powered by SebeVerify
         </p>
       </div>

@@ -14,17 +14,17 @@ export function CameraAccessScreen() {
   const setStep = useVerificationStore((s) => s.setStep)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '28px 20px' }}>
-      <div style={{ flex: 1 }}>
-        <div className="sv-step-pill" style={{ marginBottom: 16 }}>
+    <div className="flex flex-col flex-1 px-5 py-7">
+      <div className="flex-1">
+        <div className="sv-step-pill mb-4">
           <span className="sv-step-pill-num">2</span>
           Scan ID
         </div>
 
-        <h1 className="sv-display" style={{ marginBottom: 8 }}>
+        <h1 className="sv-display mb-2">
           Prepare your document
         </h1>
-        <p className="sv-lede" style={{ marginBottom: 28 }}>
+        <p className="sv-lede mb-7">
           For best results, follow the tips below before opening the camera.
         </p>
 
@@ -37,28 +37,13 @@ export function CameraAccessScreen() {
           ))}
         </ul>
 
-        <div style={{
-          marginTop: 16,
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 10,
-          padding: '12px 14px',
-          borderRadius: 'var(--sv-radius-sm)',
-          background: 'var(--sv-brand-soft)',
-          border: '1px solid rgba(44,91,255,0.15)',
-          fontSize: 13,
-          color: 'var(--sv-brand-ink)',
-          lineHeight: 1.45,
-        }}>
-          <Info size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+        <div className="mt-4 flex items-start gap-2.5 rounded-(--sv-radius-sm) border border-[rgba(44,91,255,0.15)] bg-(--sv-brand-soft) px-3.5 py-3 text-[13px] leading-relaxed text-(--sv-brand-ink)">
+          <Info size={16} className="mt-px shrink-0" />
           <span>We&apos;ll request camera access when you continue</span>
         </div>
       </div>
 
-      <div style={{
-        paddingTop: 24,
-        paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
-      }}>
+      <div className="pb-[max(8px,env(safe-area-inset-bottom))] pt-6">
         <button
           type="button"
           onClick={() => setStep("id-front")}
@@ -66,7 +51,7 @@ export function CameraAccessScreen() {
         >
           Open camera
         </button>
-        <p style={{ marginTop: 12, textAlign: 'center', fontSize: 11, color: 'var(--sv-ink-4)', fontFamily: "'Geist Mono', monospace", letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+        <p className="mt-3 text-center font-mono text-[11px] uppercase tracking-wide text-(--sv-ink-4)">
           Powered by SebeVerify
         </p>
       </div>

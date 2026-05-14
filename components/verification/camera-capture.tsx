@@ -1,8 +1,7 @@
 "use client"
 
 import { useRef, useState, useCallback, useEffect, type ReactNode } from "react"
-import { Camera, RotateCcw, Check } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { RotateCcw, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDocumentDetection } from "@/hooks/useDocumentDetection"
 
@@ -113,7 +112,6 @@ export function CameraCapture({
             await new Promise((r) => setTimeout(r, attempts === 0 ? 300 : 800))
 
             // focusMode is in the MediaCapture spec but not yet in lib.dom types.
-            // Spread it via a generic-typed object so TS doesn't object.
             const focusConstraint = { focusMode: "continuous", advanced: [{ focusMode: "continuous" }] } as unknown as MediaTrackConstraints
 
             mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -126,7 +124,6 @@ export function CameraCapture({
               audio: false,
             })
 
-            // Some phones (esp. iOS) need an explicit applyConstraints to actually engage continuous focus
             try {
               const [track] = mediaStream.getVideoTracks()
               if (track && "applyConstraints" in track) {
@@ -139,11 +136,7 @@ export function CameraCapture({
           } catch (err) {
             lastError = err
             const name = err instanceof Error ? err.name : ""
-            if (
-              name === "NotReadableError" ||
-              name === "TrackStartError" ||
-              name === "AbortError"
-            ) {
+            if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") {
               attempts++
             } else {
               throw err
@@ -151,9 +144,7 @@ export function CameraCapture({
           }
         }
 
-        if (!mediaStream) {
-          throw lastError
-        }
+        if (!mediaStream) throw lastError
 
         if (activeGlobalStream && activeGlobalStream !== mediaStream) {
           mediaStream.getTracks().forEach(t => t.stop());
@@ -181,9 +172,7 @@ export function CameraCapture({
   )
 
   useEffect(() => {
-    return () => {
-      stopCamera()
-    }
+    return () => { stopCamera() }
   }, [stopCamera])
 
   useEffect(() => {
@@ -201,11 +190,9 @@ export function CameraCapture({
     const video = videoRef.current
     const canvas = canvasRef.current
     const context = canvas.getContext("2d")
-
     if (!context) return
 
     if (overlayType === "document") {
-      // Match what the user sees: source = object-cover crop, then guide = 85% of that
       const container = videoContainerRef.current
       const vw = video.videoWidth
       const vh = video.videoHeight
@@ -215,21 +202,14 @@ export function CameraCapture({
         const srcAspect = vw / vh
         const dstAspect = container.clientWidth / container.clientHeight
         if (srcAspect > dstAspect) {
-          visH = vh
-          visW = vh * dstAspect
-          visX = (vw - visW) / 2
-          visY = 0
+          visH = vh; visW = vh * dstAspect; visX = (vw - visW) / 2; visY = 0
         } else {
-          visW = vw
-          visH = vw / dstAspect
-          visX = 0
-          visY = (vh - visH) / 2
+          visW = vw; visH = vw / dstAspect; visX = 0; visY = (vh - visH) / 2
         }
       } else {
         visW = vw; visH = vh; visX = 0; visY = 0
       }
 
-      // Guide rect inside the visible region (matches the on-screen 85% overlay)
       const isPortrait = documentAspectRatio < 1
       let gw = isPortrait ? visH * 0.85 * documentAspectRatio : visW * 0.85
       let gh = gw / documentAspectRatio
@@ -241,10 +221,8 @@ export function CameraCapture({
       canvas.width = Math.round(gw)
       canvas.height = Math.round(gh)
       context.drawImage(video, gx, gy, gw, gh, 0, 0, canvas.width, canvas.height)
-      const imageData = canvas.toDataURL("image/jpeg", 1.0)
-      onCapture(imageData)
+      onCapture(canvas.toDataURL("image/jpeg", 1.0))
     } else {
-      // Selfie path: 480px max, mirrored, 70% quality
       const MAX_WIDTH = 480
       const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1
       canvas.width = video.videoWidth * scale
@@ -252,12 +230,11 @@ export function CameraCapture({
       context.translate(canvas.width, 0)
       context.scale(-1, 1)
       context.drawImage(video, 0, 0, canvas.width, canvas.height)
-      const imageData = canvas.toDataURL("image/jpeg", 0.7)
-      onCapture(imageData)
+      onCapture(canvas.toDataURL("image/jpeg", 0.7))
     }
 
     stopCamera()
-  }, [overlayType, onCapture, stopCamera])
+  }, [overlayType, onCapture, stopCamera, documentAspectRatio])
 
   const handleRetake = () => {
     onRetake?.()
@@ -283,23 +260,25 @@ export function CameraCapture({
 
   if (error) {
     return (
-      <div className="flex flex-col flex-1 px-6 py-6">
+      <div className="flex flex-col flex-1 px-5 py-7">
         <div className="mb-6">
-          <h1 className="mb-2 text-xl font-bold text-foreground">{title}</h1>
-          <p className="text-muted-foreground">{instructions}</p>
+          <h1 className="sv-display mb-2">{title}</h1>
+          <p className="sv-lede">{instructions}</p>
         </div>
-
         <div className="flex flex-1 flex-col items-center justify-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10">
-            <Camera className="h-8 w-8 text-amber-500" />
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-(--sv-brand-soft)">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--sv-brand)" strokeWidth="1.5">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
           </div>
-          <h2 className="mb-2 text-lg font-semibold text-foreground">Camera Access Required</h2>
-          <p className="mb-6 max-w-sm text-center text-muted-foreground">{error}</p>
-          <Button type="button" onClick={() => void startCamera()} size="lg" className="h-12 px-8">
-            <RotateCcw className="mr-2 h-4 w-4" />
+          <h2 className="mb-2 text-lg font-semibold text-(--sv-ink)">Camera Access Required</h2>
+          <p className="mb-6 max-w-sm text-center text-sm text-(--sv-ink-3)">{error}</p>
+          <button type="button" onClick={() => void startCamera()} className="sv-cta sv-cta-primary max-w-xs">
+            <RotateCcw size={16} />
             Retry Camera
-          </Button>
-          <p className="mt-4 max-w-xs text-center text-xs text-muted-foreground">
+          </button>
+          <p className="mt-4 max-w-xs text-center text-xs text-(--sv-ink-4)">
             Tip: Make sure no other apps are using your camera
           </p>
         </div>
@@ -310,20 +289,24 @@ export function CameraCapture({
   return (
     <div className="flex flex-col flex-1 px-4 py-4">
       <div className="mb-3">
-        <h1 className="mb-1 text-xl font-bold text-foreground">{title}</h1>
-        <p className="text-sm text-muted-foreground">{instructions}</p>
+        <h1 className="mb-1 text-xl font-bold text-(--sv-ink)">{title}</h1>
+        <p className="text-sm text-(--sv-ink-3)">{instructions}</p>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center">
+        {/* Camera viewport */}
         <div
           ref={videoContainerRef}
           className={cn(
-            "relative w-full overflow-hidden rounded-2xl bg-black",
+            "sv-scanner relative w-full",
             overlayType === "selfie"
               ? "aspect-square max-w-md"
               : "aspect-3/4 max-h-[70svh] w-full",
           )}
         >
+          {/* Scanner grid texture */}
+          {!capturedImage && <div className="sv-scanner-grid" />}
+
           {capturedImage ? (
             <img
               src={capturedImage}
@@ -343,47 +326,29 @@ export function CameraCapture({
                 )}
               />
 
-              {/* Document overlay: corner-bracket frame */}
+              {/* Document overlay — corner brackets */}
               {overlayType === "document" && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="sv-doc-target">
                   <div
                     className={cn(
-                      "relative transition-all duration-300",
+                      "sv-doc-frame relative transition-colors duration-300",
                       documentAspectRatio >= 1 ? "w-[85%]" : "h-[85%]",
-                      isDocumentDetected ? "text-green-500" : "text-white/80"
                     )}
                     style={{ aspectRatio: documentAspectRatio }}
                   >
-                    {/* Semi-transparent border for general framing */}
-                    <div className={cn(
-                      "absolute inset-0 rounded-lg border transition-all duration-300",
-                      isDocumentDetected
-                        ? "border-green-500/60 shadow-[0_0_0_1px_rgba(34,197,94,0.25)]"
-                        : "border-white/20"
-                    )} />
+                    <div className={cn("sv-corner tl", isDocumentDetected && "detected")} />
+                    <div className={cn("sv-corner tr", isDocumentDetected && "detected")} />
+                    <div className={cn("sv-corner bl", isDocumentDetected && "detected")} />
+                    <div className={cn("sv-corner br", isDocumentDetected && "detected")} />
 
-                    {/* Corner brackets */}
-                    <div className="absolute left-0 top-0 h-7 w-7 border-l-[3px] border-t-[3px] border-current rounded-tl-md" />
-                    <div className="absolute right-0 top-0 h-7 w-7 border-r-[3px] border-t-[3px] border-current rounded-tr-md" />
-                    <div className="absolute bottom-0 left-0 h-7 w-7 border-b-[3px] border-l-[3px] border-current rounded-bl-md" />
-                    <div className="absolute bottom-0 right-0 h-7 w-7 border-b-[3px] border-r-[3px] border-current rounded-br-md" />
-
-                    {/* Status label inside frame */}
-                    <div className="absolute inset-x-0 bottom-3 flex justify-center">
-                      <span className={cn(
-                        "rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm transition-all duration-300",
-                        isDocumentDetected
-                          ? "bg-green-500/90 text-white"
-                          : "bg-black/50 text-white/80"
-                      )}>
-                        {isDocumentDetected ? "Document detected ✓" : "Position document in frame"}
-                      </span>
-                    </div>
+                    <span className={cn("sv-scan-hint", isDocumentDetected && "detected")}>
+                      {isDocumentDetected ? "Document detected ✓" : "Position document in frame"}
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* Selfie overlay: circle fills 85% of the 1:1 container */}
+              {/* Selfie overlay — circle ring */}
               {overlayType === "selfie" && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <div
@@ -399,8 +364,8 @@ export function CameraCapture({
                 </div>
               )}
 
-              {/* Flip camera button (document only) */}
-              {!capturedImage && overlayType !== "selfie" && (
+              {/* Flip camera (document only) */}
+              {overlayType !== "selfie" && (
                 <button
                   type="button"
                   onClick={toggleCamera}
@@ -415,44 +380,49 @@ export function CameraCapture({
 
         <canvas ref={canvasRef} className="hidden" />
 
-        <div className="mt-4 space-y-3">
-          {!hideControls && (capturedImage ? (
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                onClick={handleRetake}
-                variant="outline"
-                className="h-12 flex-1"
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Retake
-              </Button>
-              <Button
-                type="button"
-                onClick={() => onCapture(capturedImage)}
-                className="h-12 flex-1"
-              >
-                <Check className="mr-2 h-4 w-4" />
-                Use Photo
-              </Button>
-            </div>
-          ) : (
-            <Button
-              type="button"
-              onClick={captureImage}
-              disabled={!canCapture}
-              className="h-14 w-full text-base font-semibold"
-              size="lg"
-            >
-              <Camera className="mr-2 h-5 w-5" />
-              {!isReady
-                ? "Starting camera…"
-                : overlayType === "document" && !isDocumentDetected
-                ? "Align document to capture"
-                : "Capture"}
-            </Button>
-          ))}
-        </div>
+        {/* Controls */}
+        {!hideControls && (
+          <div className="mt-5 w-full">
+            {capturedImage ? (
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleRetake}
+                  className="sv-cta sv-cta-ghost flex-1"
+                >
+                  <RotateCcw size={16} />
+                  Retake
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCapture(capturedImage)}
+                  className="sv-cta sv-cta-primary flex-1"
+                >
+                  <Check size={16} />
+                  Use Photo
+                </button>
+              </div>
+            ) : (
+              <div className="sv-shutter-bar">
+                <button
+                  type="button"
+                  onClick={captureImage}
+                  disabled={!canCapture}
+                  className="sv-shutter-btn"
+                  aria-label={
+                    !isReady
+                      ? "Starting camera…"
+                      : overlayType === "document" && !isDocumentDetected
+                      ? "Align document to capture"
+                      : "Capture photo"
+                  }
+                >
+                  <div className="sv-shutter-inner" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
