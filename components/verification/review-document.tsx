@@ -39,23 +39,24 @@ export function ReviewDocument() {
               {isPassport ? 'Photo Page' : 'Front Side'}
             </span>
           </div>
-          <div className={cn("relative flex items-center justify-center bg-(--sv-paper-2)", aspectClass)}>
-            {frontImage ? (
-              <>
-                <img src={frontImage} alt="Document front" className="h-full w-full object-contain" />
-                <button
-                  type="button"
-                  onClick={handleRetakeFront}
-                  className="sv-cta sv-cta-ghost absolute bottom-3 right-3 h-8 w-auto gap-1.5 px-3 text-xs"
-                >
-                  <RotateCcw size={13} />
-                  Retake
-                </button>
-              </>
-            ) : (
-              <AlertCircle size={32} color="var(--sv-ink-4)" />
-            )}
+          <div className={cn("flex items-center justify-center bg-(--sv-paper-2)", aspectClass)}>
+            {frontImage
+              ? <img src={frontImage} alt="Document front" className="h-full w-full object-contain" />
+              : <AlertCircle size={32} color="var(--sv-ink-4)" />
+            }
           </div>
+          {frontImage && (
+            <div className="border-t border-(--sv-hairline-2) px-4 py-2.5 flex justify-end">
+              <button
+                type="button"
+                onClick={handleRetakeFront}
+                className="flex items-center gap-1.5 text-[13px] font-medium text-(--sv-ink-2) px-3 py-1.5 rounded-lg hover:bg-(--sv-paper-2) transition-colors"
+              >
+                <RotateCcw size={13} />
+                Retake
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Back image — non-passport only */}
@@ -64,23 +65,24 @@ export function ReviewDocument() {
             <div className="border-b border-(--sv-hairline-2) bg-(--sv-paper-2) px-4 py-2">
               <span className="text-sm font-semibold text-(--sv-ink)">Back Side</span>
             </div>
-            <div className={cn("relative flex items-center justify-center bg-(--sv-paper-2)", aspectClass)}>
-              {backImage ? (
-                <>
-                  <img src={backImage} alt="Document back" className="h-full w-full object-contain" />
-                  <button
-                    type="button"
-                    onClick={handleRetakeBack}
-                    className="sv-cta sv-cta-ghost absolute bottom-3 right-3 h-8 w-auto gap-1.5 px-3 text-xs"
-                  >
-                    <RotateCcw size={13} />
-                    Retake
-                  </button>
-                </>
-              ) : (
-                <AlertCircle size={32} color="var(--sv-ink-4)" />
-              )}
+            <div className={cn("flex items-center justify-center bg-(--sv-paper-2)", aspectClass)}>
+              {backImage
+                ? <img src={backImage} alt="Document back" className="h-full w-full object-contain" />
+                : <AlertCircle size={32} color="var(--sv-ink-4)" />
+              }
             </div>
+            {backImage && (
+              <div className="border-t border-(--sv-hairline-2) px-4 py-2.5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleRetakeBack}
+                  className="flex items-center gap-1.5 text-[13px] font-medium text-(--sv-ink-2) px-3 py-1.5 rounded-lg hover:bg-(--sv-paper-2) transition-colors"
+                >
+                  <RotateCcw size={13} />
+                  Retake
+                </button>
+              </div>
+            )}
           </div>
         )}
 

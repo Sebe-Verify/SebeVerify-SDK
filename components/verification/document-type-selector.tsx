@@ -110,7 +110,7 @@ export function DocumentTypeSelector() {
       </div>
 
       {/* Bottom CTA */}
-      <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-2">
+      <div className="px-5 pb-5 pt-2">
         <button
           type="button"
           onClick={handleContinue}

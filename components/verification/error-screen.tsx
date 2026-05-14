@@ -34,11 +34,11 @@ export function ErrorScreen({ onClose }: ErrorScreenProps) {
       </p>
 
       {/* Tips */}
-      <div className="sv-receipt mb-8 w-full max-w-sm">
+      <div className="mb-8 w-full max-w-sm rounded-(--sv-radius-md) border border-(--sv-hairline) bg-(--sv-card) overflow-hidden shadow-(--sv-shadow-card)">
         {troubleshootingTips.map((tip) => (
-          <div key={tip} className="sv-receipt-row gap-2.5">
-            <span className="text-(--sv-brand) leading-none">•</span>
-            <span className="sv-receipt-label">{tip}</span>
+          <div key={tip} className="flex items-start gap-3 px-4 py-3 border-b border-(--sv-hairline-2) last:border-b-0">
+            <span className="text-(--sv-brand) text-base leading-snug shrink-0">•</span>
+            <span className="text-[13.5px] text-(--sv-ink-3) leading-snug">{tip}</span>
           </div>
         ))}
       </div>

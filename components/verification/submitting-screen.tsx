@@ -47,9 +47,6 @@ export function SubmittingScreen() {
         <div className="w-2 h-2 rounded-full bg-(--sv-ink-4)" />
       </div>
 
-      <p className="font-mono text-[10px] uppercase tracking-widest text-(--sv-ink-4)">
-        Secured by <span className="font-semibold">SebeVerify</span>
-      </p>
     </div>
   )
 }

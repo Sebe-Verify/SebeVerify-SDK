@@ -322,7 +322,7 @@ export function CameraCapture({
 
       {/* Bottom bar */}
       {!hideControls && (
-        <div className="px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-4">
+        <div className="px-5 pb-4 pt-4">
           {capturedImage ? (
             <div className="flex gap-3">
               <button
@@ -357,8 +357,10 @@ export function CameraCapture({
                 onClick={captureImage}
                 disabled={!canCapture}
                 className={cn(
-                  "flex-1 h-12 rounded-2xl border border-(--sv-hairline) bg-(--sv-card) flex items-center justify-center text-[13px] font-medium transition-colors touch-manipulation",
-                  canCapture ? "text-(--sv-brand)" : "text-(--sv-ink-4)"
+                  "flex-1 h-12 rounded-2xl flex items-center justify-center text-[13px] font-semibold transition-all touch-manipulation",
+                  canCapture
+                    ? "bg-(--sv-brand) text-white shadow-[0_4px_12px_rgba(44,91,255,0.3)]"
+                    : "border border-(--sv-hairline) bg-(--sv-card) text-(--sv-ink-4)"
                 )}
               >
                 {!isReady ? "Starting…" : isDocumentDetected ? "Tap to capture" : "Detecting…"}

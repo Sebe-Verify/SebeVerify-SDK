@@ -10,7 +10,7 @@ export function IntroScreen() {
     <div className="flex flex-col flex-1 bg-(--sv-paper)">
       {/* Top bar */}
       <div className="flex items-center justify-center py-3">
-        <span className="text-xs font-medium text-(--sv-ink-2) tracking-wide">Identity check</span>
+        <span className="text-[15px] font-semibold text-(--sv-ink-2)">Identity check</span>
       </div>
 
       {/* Illustration area */}
@@ -62,7 +62,7 @@ export function IntroScreen() {
       </div>
 
       {/* Bottom action */}
-      <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-4 space-y-3">
+      <div className="px-5 pb-5 pt-4">
         <button
           type="button"
           onClick={() => setStep("doc-select")}
@@ -73,10 +73,6 @@ export function IntroScreen() {
             <ArrowRight size={16} />
           </div>
         </button>
-
-        <p className="text-center font-mono text-[10px] uppercase tracking-[0.12em] text-(--sv-ink-4) pt-1">
-          Secured by <span className="font-semibold">SebeVerify</span>
-        </p>
       </div>
     </div>
   )

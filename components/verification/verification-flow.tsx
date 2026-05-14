@@ -5,7 +5,6 @@ import { useVerificationStore } from "@/lib/verification-store";
 import type { VerificationStep } from "@/lib/verification-store";
 
 import { StepHeader } from "./step-header";
-import { ProgressBar } from "./progress-bar";
 import { IntroScreen } from "./intro-screen";
 import { DocumentTypeSelector } from "./document-type-selector";
 import { CameraAccessScreen } from "./camera-access-screen";
@@ -80,11 +79,15 @@ function VerificationFlowInner({
 
   return (
     <div className="sv-app">
-      <StepHeader onClose={onClose} stepTitle={STEP_TITLES[currentStep]} />
-      <ProgressBar currentStep={currentStep} />
+      <StepHeader stepTitle={STEP_TITLES[currentStep]} />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
         {renderStep()}
       </main>
+      <div className="flex justify-center pt-3 pb-[max(32px,env(safe-area-inset-bottom))]">
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--sv-ink-4)">
+          Secured by <span className="font-semibold">SebeVerify</span>
+        </p>
+      </div>
     </div>
   );
 }

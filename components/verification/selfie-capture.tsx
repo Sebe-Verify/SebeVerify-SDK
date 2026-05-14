@@ -321,7 +321,7 @@ export function SelfieCapture() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Continue button — only when passed */}
-      <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-4">
+      <div className="px-5 pb-5 pt-4">
         {livenessPassed ? (
           <button
             type="button"

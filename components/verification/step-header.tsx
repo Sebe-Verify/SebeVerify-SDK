@@ -1,17 +1,16 @@
 "use client"
 
-import { ArrowLeft, X } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 import type { VerificationStep } from "@/lib/verification-store"
 
 interface StepHeaderProps {
-  onClose?: () => void
   stepTitle?: string
 }
 
 const noHeaderSteps: VerificationStep[] = ["intro"]
 
-export function StepHeader({ onClose, stepTitle }: StepHeaderProps) {
+export function StepHeader({ stepTitle }: StepHeaderProps) {
   const { currentStep, goBack } = useVerificationStore()
 
   if (noHeaderSteps.includes(currentStep)) {
@@ -42,18 +41,7 @@ export function StepHeader({ onClose, stepTitle }: StepHeaderProps) {
         {stepTitle ?? ""}
       </div>
 
-      <div className="flex justify-end">
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="sv-topbar-btn"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        )}
-      </div>
+      <div />
     </header>
   )
 }

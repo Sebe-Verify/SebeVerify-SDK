@@ -37,7 +37,7 @@ export function CameraAccessScreen() {
       </div>
 
       {/* Bottom CTA */}
-      <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-2 space-y-3">
+      <div className="px-5 pb-5 pt-2">
         <button
           type="button"
           onClick={() => setStep("id-front")}
@@ -48,9 +48,6 @@ export function CameraAccessScreen() {
             <ArrowRight size={16} />
           </div>
         </button>
-        <p className="text-center font-mono text-[10px] uppercase tracking-[0.12em] text-(--sv-ink-4)">
-          Secured by <span className="font-semibold">SebeVerify</span>
-        </p>
       </div>
     </div>
   )
