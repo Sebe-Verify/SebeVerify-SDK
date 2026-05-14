@@ -13,7 +13,7 @@ const ANALYSIS_WIDTH = 320
 const ANALYSIS_HEIGHT = 200
 const TARGET_FPS = 15
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS
-const STABILITY_MS = 600
+const STABILITY_MS = 400
 
 // Sobel kernels
 const KX = [-1, 0, 1, -2, 0, 2, -1, 0, 1]
@@ -46,7 +46,7 @@ function checkDocument(
   aspectRatio: number
 ): boolean {
   const edges = sobelEdgeStrength(pixels, w, h)
-  const threshold = 80
+  const threshold = 50
 
   // Guide zone: matches the on-screen overlay (85% width for landscape, 85% height for portrait)
   const isPortrait = aspectRatio < 1
@@ -55,9 +55,9 @@ function checkDocument(
   const gx = Math.round((w - gw) / 2)
   const gy = Math.round((h - gh) / 2)
 
-  // Edge band width for perimeter sampling (10% of guide dims)
-  const bw = Math.max(2, Math.round(gw * 0.10))
-  const bh = Math.max(2, Math.round(gh * 0.10))
+  // Edge band width for perimeter sampling (12% of guide dims — wider catches slight misalignment)
+  const bw = Math.max(2, Math.round(gw * 0.12))
+  const bh = Math.max(2, Math.round(gh * 0.12))
 
   let topEdges = 0, bottomEdges = 0, leftEdges = 0, rightEdges = 0
   let topTotal = 0, bottomTotal = 0, leftTotal = 0, rightTotal = 0
@@ -84,10 +84,10 @@ function checkDocument(
 
   // All four sides must have meaningful edge density
   const edgeDensityOk = (
-    topDensity    > 0.08 &&
-    bottomDensity > 0.08 &&
-    leftDensity   > 0.08 &&
-    rightDensity  > 0.08
+    topDensity    > 0.05 &&
+    bottomDensity > 0.05 &&
+    leftDensity   > 0.05 &&
+    rightDensity  > 0.05
   )
 
   // Sharpness: pixel intensity variance in the center 50% of the guide
@@ -107,7 +107,7 @@ function checkDocument(
   }
   const mean = sum / count
   const variance = sumSq / count - mean * mean
-  const sharpnessOk = variance > 200
+  const sharpnessOk = variance > 100
 
   return edgeDensityOk && sharpnessOk
 }
