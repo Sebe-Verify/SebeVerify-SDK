@@ -4,19 +4,19 @@ import { useState, useRef, useEffect, useCallback } from "react"
 
 interface UseDocumentDetectionOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>
+  /** The container element that displays the video with `object-cover`. */
+  containerRef: React.RefObject<HTMLElement | null>
   enabled: boolean
   /** Width-to-height aspect ratio of the guide frame. Defaults to 1.6 (ID card). Use 0.714 for passport. */
   aspectRatio?: number
 }
 
-// Analysis canvas width — height is derived from the video's aspect ratio so we
-// don't introduce non-uniform scaling distortion when downsampling.
-const ANALYSIS_WIDTH = 320
+const ANALYSIS_LONG_EDGE = 360
 const TARGET_FPS = 10
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS
-const STABILITY_MS = 400
+const STABILITY_MS = 350
 
-// Sobel kernels for edge detection
+// Sobel kernels
 const KX = [-1, 0, 1, -2, 0, 2, -1, 0, 1]
 const KY = [-1, -2, -1, 0, 0, 0, 1, 2, 1]
 
@@ -41,16 +41,11 @@ function sobelEdgeStrength(pixels: Uint8ClampedArray, w: number, h: number): Flo
 }
 
 /**
- * Detection algorithm: Sobel edges concentrated at the guide perimeter.
- *
- * Now that the camera streams at 1920×1080 with continuous autofocus, edges are
- * sharp enough that this classical approach works reliably. We require:
- *
- *   1. Each of the four guide sides (top/bottom/left/right) has enough strong
- *      edge pixels in its outer band — the document's border is sitting there.
- *   2. The outer-band edge density is meaningfully greater than the inner-area
- *      edge density — rules out a smaller floating document or pure background clutter.
- *   3. Center region has texture (variance) — rules out a hand or uniform surface.
+ * Each of the four outer perimeter bands must have enough strong edge pixels.
+ * The analysis canvas now mirrors what the user sees (object-cover-cropped),
+ * so the on-screen guide and the analysis guide cover the exact same region of
+ * the world — no ratio guard needed; a small document inside the guide simply
+ * won't produce strong edges in the outer bands of the guide.
  */
 function checkDocument(
   pixels: Uint8ClampedArray,
@@ -59,37 +54,22 @@ function checkDocument(
   aspectRatio: number
 ): boolean {
   const edges = sobelEdgeStrength(pixels, w, h)
-  const threshold = 45
+  const threshold = 40
 
-  // Guide zone, clamped so it always fits the analysis canvas
+  // Guide: 85% of the visible area (matches the on-screen overlay)
   const isPortrait = aspectRatio < 1
-  let gw = isPortrait ? Math.round(Math.min(w, h) * 0.75 * aspectRatio) : Math.round(w * 0.85)
+  let gw = isPortrait ? Math.round(h * 0.85 * aspectRatio) : Math.round(w * 0.85)
   let gh = Math.round(gw / aspectRatio)
-  if (gh > h * 0.85) {
-    gh = Math.round(h * 0.85)
-    gw = Math.round(gh * aspectRatio)
-  }
-  if (gw > w * 0.85) {
-    gw = Math.round(w * 0.85)
-    gh = Math.round(gw / aspectRatio)
-  }
+  if (gh > h * 0.85) { gh = Math.round(h * 0.85); gw = Math.round(gh * aspectRatio) }
+  if (gw > w * 0.85) { gw = Math.round(w * 0.85); gh = Math.round(gw / aspectRatio) }
   const gx = Math.round((w - gw) / 2)
   const gy = Math.round((h - gh) / 2)
 
-  // Outer band where the document edge should sit (12% inward from guide border)
-  const outerV = Math.max(3, Math.round(gh * 0.12))
-  const outerH = Math.max(3, Math.round(gw * 0.12))
+  const bandV = Math.max(3, Math.round(gh * 0.13))
+  const bandH = Math.max(3, Math.round(gw * 0.13))
 
-  // Inner band — where a smaller floating document would show its edges instead
-  const innerStartV = Math.round(gh * 0.20)
-  const innerEndV   = Math.round(gh * 0.40)
-  const innerStartH = Math.round(gw * 0.20)
-  const innerEndH   = Math.round(gw * 0.40)
-
-  let outTop = 0, outBottom = 0, outLeft = 0, outRight = 0
-  let outTopN = 0, outBottomN = 0, outLeftN = 0, outRightN = 0
-  let inTop = 0, inBottom = 0, inLeft = 0, inRight = 0
-  let inTopN = 0, inBottomN = 0, inLeftN = 0, inRightN = 0
+  let topStrong = 0, bottomStrong = 0, leftStrong = 0, rightStrong = 0
+  let topN = 0, bottomN = 0, leftN = 0, rightN = 0
 
   for (let py = gy; py < gy + gh; py++) {
     for (let px = gx; px < gx + gw; px++) {
@@ -99,44 +79,28 @@ function checkDocument(
       const dL = px - gx
       const dR = (gx + gw - 1) - px
 
-      if (dT < outerV)    { outTopN++;    if (strong) outTop++ }
-      if (dB < outerV)    { outBottomN++; if (strong) outBottom++ }
-      if (dL < outerH)    { outLeftN++;   if (strong) outLeft++ }
-      if (dR < outerH)    { outRightN++;  if (strong) outRight++ }
-
-      if (dT >= innerStartV && dT < innerEndV) { inTopN++;    if (strong) inTop++ }
-      if (dB >= innerStartV && dB < innerEndV) { inBottomN++; if (strong) inBottom++ }
-      if (dL >= innerStartH && dL < innerEndH) { inLeftN++;   if (strong) inLeft++ }
-      if (dR >= innerStartH && dR < innerEndH) { inRightN++;  if (strong) inRight++ }
+      if (dT < bandV) { topN++;    if (strong) topStrong++ }
+      if (dB < bandV) { bottomN++; if (strong) bottomStrong++ }
+      if (dL < bandH) { leftN++;   if (strong) leftStrong++ }
+      if (dR < bandH) { rightN++;  if (strong) rightStrong++ }
     }
   }
 
-  const outerTopD    = outTopN    ? outTop    / outTopN    : 0
-  const outerBottomD = outBottomN ? outBottom / outBottomN : 0
-  const outerLeftD   = outLeftN   ? outLeft   / outLeftN   : 0
-  const outerRightD  = outRightN  ? outRight  / outRightN  : 0
+  const topD    = topN    ? topStrong    / topN    : 0
+  const bottomD = bottomN ? bottomStrong / bottomN : 0
+  const leftD   = leftN   ? leftStrong   / leftN   : 0
+  const rightD  = rightN  ? rightStrong  / rightN  : 0
 
-  const innerTopD    = inTopN    ? inTop    / inTopN    : 0
-  const innerBottomD = inBottomN ? inBottom / inBottomN : 0
-  const innerLeftD   = inLeftN   ? inLeft   / inLeftN   : 0
-  const innerRightD  = inRightN  ? inRight  / inRightN  : 0
+  // Each side needs ≥3% strong-edge pixels — very permissive.
+  // At least 3 of the 4 sides must pass (one weak side can be a corner being clipped).
+  const sidesPassing = [topD, bottomD, leftD, rightD].filter((d) => d > 0.03).length
+  const edgesOk = sidesPassing >= 3
 
-  // Each side: outer band has enough strong edges AND has more than the inner band.
-  // The ratio guards against a small document floating in the middle of the guide.
-  const sideOk = (outer: number, inner: number) => outer > 0.04 && outer > inner * 1.15
-
-  const edgesOk = (
-    sideOk(outerTopD,    innerTopD)    &&
-    sideOk(outerBottomD, innerBottomD) &&
-    sideOk(outerLeftD,   innerLeftD)   &&
-    sideOk(outerRightD,  innerRightD)
-  )
-
-  // Sharpness: variance in the center 50% of the guide
-  const cx1 = gx + Math.round(gw * 0.25)
-  const cx2 = gx + Math.round(gw * 0.75)
-  const cy1 = gy + Math.round(gh * 0.25)
-  const cy2 = gy + Math.round(gh * 0.75)
+  // Sharpness sanity check: variance in the inner 60% of the guide
+  const cx1 = gx + Math.round(gw * 0.20)
+  const cx2 = gx + Math.round(gw * 0.80)
+  const cy1 = gy + Math.round(gh * 0.20)
+  const cy2 = gy + Math.round(gh * 0.80)
   let sum = 0, sumSq = 0, count = 0
   for (let py = cy1; py < cy2; py++) {
     for (let px = cx1; px < cx2; px++) {
@@ -147,14 +111,41 @@ function checkDocument(
       count++
     }
   }
-  const mean = sum / count
-  const variance = sumSq / count - mean * mean
-  const sharpnessOk = variance > 40
+  const mean = count > 0 ? sum / count : 0
+  const variance = count > 0 ? sumSq / count - mean * mean : 0
+  const sharpnessOk = variance > 30
 
   return edgesOk && sharpnessOk
 }
 
-export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: UseDocumentDetectionOptions) {
+/**
+ * Compute the source-video crop rectangle that `object-cover` produces given
+ * a destination container of (dstW × dstH). Returns the source rectangle in
+ * source pixels.
+ */
+function objectCoverCrop(srcW: number, srcH: number, dstW: number, dstH: number) {
+  const srcAspect = srcW / srcH
+  const dstAspect = dstW / dstH
+
+  if (srcAspect > dstAspect) {
+    // Source is wider than destination — crop horizontally
+    const cropW = srcH * dstAspect
+    const cropX = (srcW - cropW) / 2
+    return { sx: cropX, sy: 0, sw: cropW, sh: srcH }
+  } else {
+    // Source is taller than destination — crop vertically
+    const cropH = srcW / dstAspect
+    const cropY = (srcH - cropH) / 2
+    return { sx: 0, sy: cropY, sw: srcW, sh: cropH }
+  }
+}
+
+export function useDocumentDetection({
+  videoRef,
+  containerRef,
+  enabled,
+  aspectRatio = 1.6,
+}: UseDocumentDetectionOptions) {
   const [isDocumentDetected, setIsDocumentDetected] = useState(false)
   const offscreenRef = useRef<HTMLCanvasElement | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -186,24 +177,42 @@ export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: U
       if (timestamp - lastFrameTimeRef.current >= FRAME_INTERVAL_MS) {
         lastFrameTimeRef.current = timestamp
         const video = videoRef.current
-        if (video && video.readyState >= 2 && video.videoWidth > 0) {
+        const container = containerRef.current
+        if (
+          video && video.readyState >= 2 && video.videoWidth > 0 &&
+          container && container.clientWidth > 0 && container.clientHeight > 0
+        ) {
           try {
-            const canvas = getOffscreen()
-            // Derive analysis height from the video's actual aspect ratio — preserves
-            // proportions so the guide-zone calculation matches what the user sees.
-            const analysisHeight = Math.max(
-              80,
-              Math.round((ANALYSIS_WIDTH * video.videoHeight) / video.videoWidth),
+            // Match what the user sees: source crop = object-cover of the container
+            const crop = objectCoverCrop(
+              video.videoWidth, video.videoHeight,
+              container.clientWidth, container.clientHeight,
             )
-            if (canvas.width !== ANALYSIS_WIDTH || canvas.height !== analysisHeight) {
-              canvas.width = ANALYSIS_WIDTH
-              canvas.height = analysisHeight
+
+            // Analysis canvas: scale so the long edge is ANALYSIS_LONG_EDGE
+            const visibleAspect = container.clientWidth / container.clientHeight
+            const analysisW = visibleAspect >= 1
+              ? ANALYSIS_LONG_EDGE
+              : Math.round(ANALYSIS_LONG_EDGE * visibleAspect)
+            const analysisH = visibleAspect >= 1
+              ? Math.round(ANALYSIS_LONG_EDGE / visibleAspect)
+              : ANALYSIS_LONG_EDGE
+
+            const canvas = getOffscreen()
+            if (canvas.width !== analysisW || canvas.height !== analysisH) {
+              canvas.width = analysisW
+              canvas.height = analysisH
             }
             const ctx = canvas.getContext("2d", { willReadFrequently: true })
             if (ctx) {
-              ctx.drawImage(video, 0, 0, ANALYSIS_WIDTH, analysisHeight)
-              const imageData = ctx.getImageData(0, 0, ANALYSIS_WIDTH, analysisHeight)
-              const detected = checkDocument(imageData.data, ANALYSIS_WIDTH, analysisHeight, aspectRatio)
+              // Draw ONLY the visible crop region of the source into the analysis canvas
+              ctx.drawImage(
+                video,
+                crop.sx, crop.sy, crop.sw, crop.sh,
+                0, 0, analysisW, analysisH,
+              )
+              const imageData = ctx.getImageData(0, 0, analysisW, analysisH)
+              const detected = checkDocument(imageData.data, analysisW, analysisH, aspectRatio)
 
               if (detected) {
                 if (detectedSinceRef.current === null) {
@@ -237,7 +246,7 @@ export function useDocumentDetection({ videoRef, enabled, aspectRatio = 1.6 }: U
       active = false
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
-  }, [enabled, videoRef, getOffscreen])
+  }, [enabled, videoRef, containerRef, aspectRatio, getOffscreen])
 
   return { isDocumentDetected }
 }

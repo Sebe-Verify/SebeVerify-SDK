@@ -48,6 +48,7 @@ export function CameraCapture({
   const internalVideoRef = useRef<HTMLVideoElement>(null)
   const videoRef = externalVideoRef || internalVideoRef
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const videoContainerRef = useRef<HTMLDivElement>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isReady, setIsReady] = useState(false)
@@ -56,7 +57,12 @@ export function CameraCapture({
   )
 
   const detectionEnabled = overlayType === "document" && !capturedImage && isReady
-  const { isDocumentDetected } = useDocumentDetection({ videoRef, enabled: detectionEnabled, aspectRatio: documentAspectRatio })
+  const { isDocumentDetected } = useDocumentDetection({
+    videoRef,
+    containerRef: videoContainerRef,
+    enabled: detectionEnabled,
+    aspectRatio: documentAspectRatio,
+  })
 
   const stopCamera = useCallback(() => {
     if (videoRef?.current) {
@@ -197,17 +203,38 @@ export function CameraCapture({
     if (!context) return
 
     if (overlayType === "document") {
-      // Crop to guide rectangle at full native resolution — no downscale, no compression loss
+      // Match what the user sees: source = object-cover crop, then guide = 85% of that
+      const container = videoContainerRef.current
       const vw = video.videoWidth
       const vh = video.videoHeight
+
+      let visW: number, visH: number, visX: number, visY: number
+      if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        const srcAspect = vw / vh
+        const dstAspect = container.clientWidth / container.clientHeight
+        if (srcAspect > dstAspect) {
+          visH = vh
+          visW = vh * dstAspect
+          visX = (vw - visW) / 2
+          visY = 0
+        } else {
+          visW = vw
+          visH = vw / dstAspect
+          visX = 0
+          visY = (vh - visH) / 2
+        }
+      } else {
+        visW = vw; visH = vh; visX = 0; visY = 0
+      }
+
+      // Guide rect inside the visible region (matches the on-screen 85% overlay)
       const isPortrait = documentAspectRatio < 1
-      // For portrait docs (passport), base the guide on 75% of the shorter video dimension
-      const gw = isPortrait
-        ? Math.min(vw, vh) * 0.75 * documentAspectRatio
-        : vw * 0.85
-      const gh = gw / documentAspectRatio
-      const gx = (vw - gw) / 2
-      const gy = (vh - gh) / 2
+      let gw = isPortrait ? visH * 0.85 * documentAspectRatio : visW * 0.85
+      let gh = gw / documentAspectRatio
+      if (gh > visH * 0.85) { gh = visH * 0.85; gw = gh * documentAspectRatio }
+      if (gw > visW * 0.85) { gw = visW * 0.85; gh = gw / documentAspectRatio }
+      const gx = visX + (visW - gw) / 2
+      const gy = visY + (visH - gh) / 2
 
       canvas.width = Math.round(gw)
       canvas.height = Math.round(gh)
@@ -287,6 +314,7 @@ export function CameraCapture({
 
       <div className="flex flex-1 flex-col items-center justify-center">
         <div
+          ref={videoContainerRef}
           className={cn(
             "relative w-full overflow-hidden rounded-2xl bg-black",
             overlayType === "selfie"
