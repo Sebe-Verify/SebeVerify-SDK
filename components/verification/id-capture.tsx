@@ -11,7 +11,6 @@ export function IdFrontCapture() {
   const documentLabels = {
     passport: 'Passport Photo Page',
     national_id: 'ID Card Front',
-    driver_license: 'License Front'
   }
 
   const handleCapture = (imageData: string) => {
@@ -36,7 +35,7 @@ export function IdFrontCapture() {
   return (
     <CameraCapture
       title={`Capture ${documentLabels[documentType || 'national_id']}`}
-      instructions="Position your document within the frame. Ensure all text is clearly visible and the image is not blurry."
+      instructions="Position your ID card inside the frame"
       onCapture={handleCapture}
       onRetake={handleRetake}
       capturedImage={capturedImage}
@@ -53,7 +52,6 @@ export function IdBackCapture() {
   const documentLabels = {
     passport: 'Passport',
     national_id: 'ID Card Back',
-    driver_license: 'License Back'
   }
 
   const handleCapture = (imageData: string) => {

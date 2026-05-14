@@ -12,7 +12,7 @@ export type MockSessionStatus = "pending" | "approved" | "rejected";
 export type MockSession = {
   sessionId: string;
   status: MockSessionStatus;
-  documentType?: "passport" | "national_id" | "driver_license";
+  documentType?: "passport" | "national_id";
   /** Data URLs from camera capture (same as in-app state), not static file paths */
   frontImage?: string;
   backImage?: string;

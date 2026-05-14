@@ -9,7 +9,7 @@ export function IntroScreen() {
   return (
     <div className="flex flex-col flex-1 bg-(--sv-paper)">
       {/* Top bar */}
-      <div className="flex items-center justify-center py-3 border-b border-(--sv-hairline)">
+      <div className="flex items-center justify-center py-3">
         <span className="text-xs font-medium text-(--sv-ink-2) tracking-wide">Identity check</span>
       </div>
 

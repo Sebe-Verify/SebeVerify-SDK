@@ -17,13 +17,11 @@ export type VerificationStep =
   | "submitted"
   | "error";
 
-export type DocumentType = "passport" | "national_id" | "driver_license";
+export type DocumentType = "passport" | "national_id";
 
-// Backend uses hyphenated values; driver_license has no backend equivalent so falls back to national-id
 const BACKEND_DOC_TYPE: Record<DocumentType, string> = {
   passport: "passport",
   national_id: "national-id",
-  driver_license: "national-id",
 };
 
 export interface VerificationData {

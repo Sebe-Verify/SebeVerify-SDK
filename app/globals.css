@@ -126,7 +126,6 @@
   grid-template-columns: 36px 1fr 36px;
   align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--sv-hairline);
   background: rgba(250,250,246,0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

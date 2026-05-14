@@ -25,11 +25,12 @@ interface VerificationFlowProps {
 }
 
 const STEP_TITLES: Partial<Record<VerificationStep, string>> = {
-  "id-camera-prep": "Capture ID",
+  "doc-select": "Choose document",
+  "id-camera-prep": "Capture ID card",
   "id-front": "Front of ID",
   "id-back": "Back of ID",
   "review": "Review",
-  "selfie": "Selfie",
+  "selfie": "Selfie check",
   "submitting": "Submitting",
   "submitted": "Complete",
   "error": "Verification failed",

@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowRight, Globe } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 import type { DocumentType } from "@/lib/verification-store"
 import { cn } from "@/lib/utils"
@@ -10,14 +10,13 @@ const documentTypes: {
   label: string
   photos: string
   time: string
-  illustration: "id" | "passport" | "license"
+  illustration: "id" | "passport"
 }[] = [
-  { type: "national_id",     label: "National ID Card",   photos: "2 photos", time: "~30 sec", illustration: "id" },
-  { type: "passport",        label: "Passport",           photos: "1 photo",  time: "~20 sec", illustration: "passport" },
-  { type: "driver_license",  label: "Driver's License",   photos: "2 photos", time: "~30 sec", illustration: "license" },
+  { type: "national_id", label: "National ID Card", photos: "2 photos", time: "~30 sec", illustration: "id" },
+  { type: "passport",    label: "Passport",          photos: "1 photo",  time: "~20 sec", illustration: "passport" },
 ]
 
-function DocIllustration({ type }: { type: "id" | "passport" | "license" }) {
+function DocIllustration({ type }: { type: "id" | "passport" }) {
   if (type === "passport") {
     return (
       <div className="w-full h-full rounded-lg bg-[#1a1a2e] flex flex-col justify-between p-2">
@@ -30,10 +29,7 @@ function DocIllustration({ type }: { type: "id" | "passport" | "license" }) {
     )
   }
   return (
-    <div className={cn(
-      "w-full h-full rounded-lg flex items-center gap-2 p-2",
-      type === "license" ? "bg-[#1a2a1a]" : "bg-(--sv-brand)"
-    )}>
+    <div className="w-full h-full rounded-lg flex items-center gap-2 p-2 bg-(--sv-brand)">
       <div className="w-6 h-7 rounded-sm bg-white/25 shrink-0" />
       <div className="flex-1 space-y-1.5">
         <div className="w-full h-1.5 rounded-full bg-white/30" />
@@ -47,7 +43,7 @@ function DocIllustration({ type }: { type: "id" | "passport" | "license" }) {
 export function DocumentTypeSelector() {
   const { documentType, setDocumentType } = useVerificationStore()
 
-  const selected = documentType ?? "national_id"
+  const selected: DocumentType = documentType ?? "national_id"
 
   const handleContinue = () => {
     setDocumentType(selected)
@@ -111,17 +107,6 @@ export function DocumentTypeSelector() {
           })}
         </div>
 
-        {/* Issued in row */}
-        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-(--sv-hairline) bg-(--sv-card)">
-          <Globe size={16} className="text-(--sv-ink-4) shrink-0" />
-          <div className="flex-1">
-            <div className="text-[10px] font-semibold tracking-[0.08em] uppercase text-(--sv-ink-4)">Issued in</div>
-            <div className="text-[14px] font-semibold text-(--sv-ink)">
-              Nigeria{" "}
-              <span className="text-(--sv-brand) font-medium text-[13px]">change</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Bottom CTA */}
