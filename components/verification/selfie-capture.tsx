@@ -6,6 +6,7 @@ import { CameraCapture } from "./camera-capture"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
 import { Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right";
 const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"];
@@ -28,10 +29,12 @@ export function SelfieCapture() {
   const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0)
   const [livenessPassed, setLivenessPassed] = useState(false)
   const [capturedSnapshots, setCapturedSnapshots] = useState<string[]>([])
-  // Small cooldown to prevent double-detection of the same gesture
   const cooldownRef = useRef(false)
 
-  // Pick challenges once per mount — do not re-run when `initLivenessEngine` identity changes
+  // Face positioning state
+  const [faceAligned, setFaceAligned] = useState(false)
+  const [faceStatus, setFaceStatus] = useState<"none" | "too_far" | "too_close" | "off_center" | "aligned">("none")
+
   useEffect(() => {
     const shuffled = [...ALL_CHALLENGES].sort(() => 0.5 - Math.random())
     setChallenges(shuffled.slice(0, 3))
@@ -51,14 +54,12 @@ export function SelfieCapture() {
     }
   }, [challenges.length, currentChallengeIndex, livenessPassed])
 
-  // Store all 3 images when liveness is done
   const handleComplete = async () => {
     setLivenessImages(capturedSnapshots)
     setSelfieImage(capturedSnapshots[capturedSnapshots.length - 1])
     await submitVerification()
   }
 
-  /** Grabs the current video frame to a JPEG data URL */
   const captureSnapshot = useCallback((): string | null => {
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -72,16 +73,13 @@ export function SelfieCapture() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return null
 
-    // Mirror so the selfie looks natural (front camera is already mirrored in CSS)
     ctx.translate(canvas.width, 0)
     ctx.scale(-1, 1)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    // Send small size for instantly fast uploads (480p at 70% quality compresses under 70KB)
     return canvas.toDataURL("image/jpeg", 0.7)
   }, [])
 
   const lastVideoTimeRef = useRef<number>(-1)
-
   const analyzeRef = useRef<() => void>(() => {})
   const holdStartTimeRef = useRef<number>(0)
 
@@ -93,6 +91,53 @@ export function SelfieCapture() {
     if (video.currentTime !== lastVideoTimeRef.current && video.readyState >= 2) {
       lastVideoTimeRef.current = video.currentTime;
       const results = landmarker.detectForVideo(video, performance.now());
+
+      // ── Face positioning detection ──────────────────────────────────────────
+      const landmarks = results.faceLandmarks?.[0]
+      if (landmarks && landmarks.length > 263) {
+        // Key landmark indices: outer eye corners (33, 263), nose tip (1), forehead (10), chin (152)
+        const xs = [landmarks[33].x, landmarks[263].x, landmarks[1].x]
+        const ys = [landmarks[10].y, landmarks[152].y]
+        const faceLeft   = Math.min(...xs)
+        const faceRight  = Math.max(...xs)
+        const faceTop    = Math.min(...ys)
+        const faceBottom = Math.max(...ys)
+
+        const faceCenterX = (faceLeft + faceRight) / 2
+        const faceCenterY = (faceTop + faceBottom) / 2
+        const faceWidth   = faceRight - faceLeft
+
+        // Circle guide: centered at 0.5,0.5 with radius ~37.5% of frame width
+        const cx = 0.5, cy = 0.5, r = 0.375
+
+        const centered = Math.abs(faceCenterX - cx) < 0.12 && Math.abs(faceCenterY - cy) < 0.12
+        const goodSize = faceWidth > 0.35 && faceWidth < 0.75
+        const fullyIn  = (
+          faceLeft   > (cx - r + 0.05) &&
+          faceRight  < (cx + r - 0.05) &&
+          faceTop    > (cy - r + 0.05) &&
+          faceBottom < (cy + r - 0.05)
+        )
+
+        const aligned = centered && goodSize && fullyIn
+        setFaceAligned(aligned)
+
+        if (aligned) {
+          setFaceStatus("aligned")
+        } else if (faceWidth < 0.35) {
+          setFaceStatus("too_far")
+        } else if (faceWidth > 0.75) {
+          setFaceStatus("too_close")
+        } else if (!centered) {
+          setFaceStatus("off_center")
+        } else {
+          setFaceStatus("none")
+        }
+      } else {
+        setFaceAligned(false)
+        setFaceStatus("none")
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
         const shapes: Category[] = results.faceBlendshapes[0].categories;
@@ -121,17 +166,14 @@ export function SelfieCapture() {
 
         if (passed) {
           if (holdStartTimeRef.current === 0) {
-            // First frame passing the threshold, start the timer
             holdStartTimeRef.current = performance.now();
           } else {
-            // Blinks are fast (require only 150ms), smiles/turns require 800ms to stabilize
             const requiredHoldTime = currentChallenge === "blink" ? 150 : 800;
             const holdDuration = performance.now() - holdStartTimeRef.current;
 
             if (holdDuration >= requiredHoldTime) {
-              // Successfully held for long enough, take the snapshot
               cooldownRef.current = true;
-              holdStartTimeRef.current = 0; // reset
+              holdStartTimeRef.current = 0;
 
               const snapshot = captureSnapshot();
 
@@ -151,14 +193,12 @@ export function SelfieCapture() {
             }
           }
         } else {
-          // If the user drops the pose before 800ms, reset the timer
           holdStartTimeRef.current = 0;
         }
       }
     }
   }
 
-  // The master polling loop
   useEffect(() => {
     if (!landmarker || livenessPassed) return;
 
@@ -170,27 +210,43 @@ export function SelfieCapture() {
       }
     };
 
-    // Start loop
     requestAnimationFrame(loop);
 
-    // Cleanup loop exactly once when unmounting or liveness finishes
     return () => {
       active = false;
     };
   }, [landmarker, livenessPassed]);
 
   const completedCount = currentChallengeIndex;
-  const currentLabel: ReactNode = challenges[currentChallengeIndex]
-    ? CHALLENGE_LABELS[challenges[currentChallengeIndex]]
-    : "Preparing camera…";
 
-  const instructions: ReactNode = isInitializing
-    ? "Loading face detection… This may take up to a minute on a slow connection."
-    : mpError
-    ? `Face detection could not start: ${mpError.message}`
+  // Build the instructions label shown in CameraCapture
+  const getFacePositionLabel = (): ReactNode => {
+    if (isInitializing) return "Loading face detection… This may take up to a minute on a slow connection."
+    if (mpError) return `Face detection could not start: ${mpError.message}`
+    switch (faceStatus) {
+      case "too_far":   return "Move closer to the camera"
+      case "too_close": return "Move back a little"
+      case "off_center": return "Center your face in the circle"
+      case "aligned":   return <span className="text-green-500 font-medium">Face detected ✓</span>
+      default:          return "Center your face in the circle"
+    }
+  }
+
+  const challengeLabel: ReactNode = challenges[currentChallengeIndex]
+    ? CHALLENGE_LABELS[challenges[currentChallengeIndex]]
     : livenessPassed
     ? "Liveness check completed!"
-    : currentLabel
+    : "Preparing camera…"
+
+  // Before liveness challenges start, show face positioning guidance; once running, show challenge
+  const hasStartedChallenges = completedCount > 0 || (faceAligned && challenges.length > 0)
+  const instructions: ReactNode = isInitializing || mpError
+    ? getFacePositionLabel()
+    : livenessPassed
+    ? "Liveness check completed!"
+    : hasStartedChallenges
+    ? challengeLabel
+    : getFacePositionLabel()
 
   return (
     <div className="flex flex-col flex-1 relative">
@@ -202,6 +258,7 @@ export function SelfieCapture() {
         overlayType="selfie"
         videoRef={videoRef}
         hideControls={true}
+        isFaceDetected={faceAligned && !livenessPassed}
       />
 
       {/* Hidden canvas used to take snapshots */}
@@ -210,39 +267,42 @@ export function SelfieCapture() {
       {/* Complete button — shown once all challenges pass */}
       {livenessPassed && (
         <div className="absolute bottom-8 left-0 right-0 flex justify-center z-10 px-6">
-          <button
+          <Button
             type="button"
             onClick={() => void handleComplete()}
-            className="h-14 w-full max-w-sm rounded-2xl bg-green-500 text-white font-semibold text-base shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
+            className="h-14 w-full max-w-sm rounded-xl text-base font-semibold"
+            size="lg"
           >
             <CheckCircle2 className="w-5 h-5" />
-            Continue
-          </button>
+            Continue to submit
+          </Button>
         </div>
       )}
+
+      {/* Challenge progress overlay */}
       <div className="absolute top-28 left-0 right-0 flex justify-center pointer-events-none z-10">
-        <div className="bg-background/85 backdrop-blur-md px-5 py-3 rounded-full flex items-center gap-3 border shadow-lg">
+        <div className="bg-background/95 backdrop-blur-sm px-4 py-2.5 rounded-xl flex items-center gap-3 border border-border shadow-sm">
           {isInitializing ? (
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
           ) : livenessPassed ? (
             <CheckCircle2 className="w-5 h-5 text-green-500" />
           ) : (
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               {challenges.map((_, i) => (
                 <div
                   key={i}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                  className={`h-1.5 w-8 rounded-full transition-all duration-500 ${
                     i < completedCount
-                      ? "bg-green-500 scale-90"
+                      ? "bg-green-500"
                       : i === completedCount
-                      ? "bg-amber-400 animate-pulse scale-110"
-                      : "bg-muted"
+                      ? "bg-primary"
+                      : "bg-border"
                   }`}
                 />
               ))}
             </div>
           )}
-          <span className="font-medium text-sm">
+          <span className="font-medium text-sm text-foreground">
             {livenessPassed
               ? "Completed ✓"
               : isInitializing

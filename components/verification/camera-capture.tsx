@@ -4,6 +4,7 @@ import { useRef, useState, useCallback, useEffect, type ReactNode } from "react"
 import { Camera, RotateCcw, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useDocumentDetection } from "@/hooks/useDocumentDetection"
 
 // Centralizes the video stream so we never orphan tracks when React rapidly remounts
 let activeGlobalStream: MediaStream | null = null;
@@ -26,7 +27,8 @@ interface CameraCaptureProps {
   instructions: ReactNode
   overlayType?: "document" | "selfie"
   videoRef?: React.RefObject<HTMLVideoElement | null>
-  hideControls?: boolean  // Used by liveness mode — hides the capture button entirely
+  hideControls?: boolean
+  isFaceDetected?: boolean
 }
 
 export function CameraCapture({
@@ -38,6 +40,7 @@ export function CameraCapture({
   overlayType = "document",
   videoRef: externalVideoRef,
   hideControls = false,
+  isFaceDetected = false,
 }: CameraCaptureProps) {
   const internalVideoRef = useRef<HTMLVideoElement>(null)
   const videoRef = externalVideoRef || internalVideoRef
@@ -48,6 +51,9 @@ export function CameraCapture({
   const [facingMode, setFacingMode] = useState<"user" | "environment">(
     overlayType === "selfie" ? "user" : "environment"
   )
+
+  const detectionEnabled = overlayType === "document" && !capturedImage && isReady
+  const { isDocumentDetected } = useDocumentDetection({ videoRef, enabled: detectionEnabled })
 
   const stopCamera = useCallback(() => {
     if (videoRef?.current) {
@@ -62,7 +68,6 @@ export function CameraCapture({
 
   const startCamera = useCallback(
     async (overrideFacing?: "user" | "environment") => {
-      // Prevent React Strict Mode from spamming twin requests that orphan the hardware
       if (isRequestingRef.current) return;
 
       const mode = overrideFacing ?? facingMode
@@ -84,7 +89,6 @@ export function CameraCapture({
           return
         }
 
-        // Drop any previous streams forcefully before requesting
         killGlobalStream()
         setStream(null)
 
@@ -95,14 +99,13 @@ export function CameraCapture({
 
         while (attempts < maxAttempts) {
           try {
-            // Give Android hardware extra cool-down time on retries OR on initial attempt if something else just stopped
             await new Promise((r) => setTimeout(r, attempts === 0 ? 300 : 800))
 
             mediaStream = await navigator.mediaDevices.getUserMedia({
               video: { facingMode: { ideal: mode }, width: { ideal: 1280 } },
               audio: false,
             })
-            break // Success!
+            break
           } catch (err) {
             lastError = err
             const name = err instanceof Error ? err.name : ""
@@ -122,10 +125,9 @@ export function CameraCapture({
           throw lastError
         }
 
-        // Verify we haven't been bypassed by another call while awaiting
         if (activeGlobalStream && activeGlobalStream !== mediaStream) {
-            mediaStream.getTracks().forEach(t => t.stop());
-            return;
+          mediaStream.getTracks().forEach(t => t.stop());
+          return;
         }
 
         activeGlobalStream = mediaStream;
@@ -135,7 +137,7 @@ export function CameraCapture({
         if (e.name === "AbortError" || e.message.includes("Timeout")) {
           setError("Camera took too long to start. Please close other apps using the camera and try again.")
         } else if (e.name === "NotAllowedError") {
-          setError("Camera access was denied. Tap “Allow camera” again and choose Allow in the browser prompt, or enable camera in site settings.")
+          setError('Camera access was denied. Tap "Allow camera" again and choose Allow in the browser prompt, or enable camera in site settings.')
         } else if (e.name === "NotFoundError") {
           setError("No camera found on this device. Please use a device with a camera.")
         } else {
@@ -154,13 +156,11 @@ export function CameraCapture({
     }
   }, [stopCamera])
 
-  // React Lifecycle Fix: Bind stream to video AFTER it mounts
   useEffect(() => {
     if (videoRef.current && stream && videoRef.current.srcObject !== stream) {
       videoRef.current.srcObject = stream
       videoRef.current.onloadedmetadata = () => setIsReady(true)
       videoRef.current.onplay = () => setIsReady(true)
-      // Ignore AbortError if load is interrupted by component remount/fast routing
       videoRef.current.play().catch(() => { /* silent catch */ })
     }
   }, [stream])
@@ -174,24 +174,35 @@ export function CameraCapture({
 
     if (!context) return
 
-    const MAX_WIDTH = 640;
-    const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
+    if (overlayType === "document") {
+      // Crop to guide rectangle at full native resolution — no downscale, no compression loss
+      const vw = video.videoWidth
+      const vh = video.videoHeight
+      const gw = vw * 0.85
+      const gh = gw / 1.6
+      const gx = (vw - gw) / 2
+      const gy = (vh - gh) / 2
 
-    canvas.width = video.videoWidth * scale
-    canvas.height = video.videoHeight * scale
-
-    if (facingMode === "user") {
+      canvas.width = Math.round(gw)
+      canvas.height = Math.round(gh)
+      context.drawImage(video, gx, gy, gw, gh, 0, 0, canvas.width, canvas.height)
+      const imageData = canvas.toDataURL("image/jpeg", 1.0)
+      onCapture(imageData)
+    } else {
+      // Selfie path: 480px max, mirrored, 70% quality
+      const MAX_WIDTH = 480
+      const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1
+      canvas.width = video.videoWidth * scale
+      canvas.height = video.videoHeight * scale
       context.translate(canvas.width, 0)
       context.scale(-1, 1)
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      const imageData = canvas.toDataURL("image/jpeg", 0.7)
+      onCapture(imageData)
     }
 
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    // Using 0.7 compression ratio for blazing fast JSON network payloads
-    const imageData = canvas.toDataURL("image/jpeg", 0.7)
-    onCapture(imageData)
     stopCamera()
-  }, [facingMode, onCapture, stopCamera])
+  }, [overlayType, onCapture, stopCamera])
 
   const handleRetake = () => {
     onRetake?.()
@@ -213,6 +224,8 @@ export function CameraCapture({
     }
   }, [hasAutoStarted, capturedImage, startCamera])
 
+  const canCapture = isReady && (overlayType === "document" ? isDocumentDetected : true)
+
   if (error) {
     return (
       <div className="flex flex-col flex-1 px-6 py-6">
@@ -222,7 +235,7 @@ export function CameraCapture({
         </div>
 
         <div className="flex flex-1 flex-col items-center justify-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10">
             <Camera className="h-8 w-8 text-amber-500" />
           </div>
           <h2 className="mb-2 text-lg font-semibold text-foreground">Camera Access Required</h2>
@@ -240,14 +253,14 @@ export function CameraCapture({
   }
 
   return (
-    <div className="flex flex-col flex-1 px-6 py-6">
-      <div className="mb-4">
-        <h1 className="mb-2 text-xl font-bold text-foreground">{title}</h1>
-        <p className="text-muted-foreground">{instructions}</p>
+    <div className="flex flex-col flex-1 px-4 py-4">
+      <div className="mb-3">
+        <h1 className="mb-1 text-xl font-bold text-foreground">{title}</h1>
+        <p className="text-sm text-muted-foreground">{instructions}</p>
       </div>
 
       <div className="flex flex-1 flex-col">
-        <div className="relative min-h-[300px] flex-1 overflow-hidden rounded-2xl bg-foreground/5">
+        <div className="relative min-h-[300px] flex-1 overflow-hidden rounded-2xl bg-black">
           {capturedImage ? (
             <img
               src={capturedImage}
@@ -267,30 +280,76 @@ export function CameraCapture({
                 )}
               />
 
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                {overlayType === "document" ? (
-                  <div className="aspect-[1.6] w-[85%] rounded-lg border-2 border-dashed border-primary/50" />
-                ) : (
-                  <div className="h-48 w-48 rounded-full border-2 border-dashed border-primary/50" />
-                )}
-              </div>
-            </>
-          )}
+              {/* Document overlay: corner-bracket frame */}
+              {overlayType === "document" && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div
+                    className={cn(
+                      "relative aspect-[1.6] w-[85%] transition-all duration-300",
+                      isDocumentDetected ? "text-green-500" : "text-white/80"
+                    )}
+                  >
+                    {/* Semi-transparent border for general framing */}
+                    <div className={cn(
+                      "absolute inset-0 rounded-lg border transition-all duration-300",
+                      isDocumentDetected
+                        ? "border-green-500/60 shadow-[0_0_0_1px_rgba(34,197,94,0.25)]"
+                        : "border-white/20"
+                    )} />
 
-          {!capturedImage && overlayType !== "selfie" && (
-            <button
-              type="button"
-              onClick={toggleCamera}
-              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-foreground/20 text-background backdrop-blur-sm touch-manipulation"
-            >
-              <RotateCcw className="h-5 w-5" />
-            </button>
+                    {/* Corner brackets */}
+                    <div className="absolute left-0 top-0 h-7 w-7 border-l-[3px] border-t-[3px] border-current rounded-tl-md" />
+                    <div className="absolute right-0 top-0 h-7 w-7 border-r-[3px] border-t-[3px] border-current rounded-tr-md" />
+                    <div className="absolute bottom-0 left-0 h-7 w-7 border-b-[3px] border-l-[3px] border-current rounded-bl-md" />
+                    <div className="absolute bottom-0 right-0 h-7 w-7 border-b-[3px] border-r-[3px] border-current rounded-br-md" />
+
+                    {/* Status label inside frame */}
+                    <div className="absolute inset-x-0 bottom-3 flex justify-center">
+                      <span className={cn(
+                        "rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm transition-all duration-300",
+                        isDocumentDetected
+                          ? "bg-green-500/90 text-white"
+                          : "bg-black/50 text-white/80"
+                      )}>
+                        {isDocumentDetected ? "Document detected ✓" : "Position document in frame"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Selfie overlay: large responsive circle */}
+              {overlayType === "selfie" && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div
+                    className={cn(
+                      "rounded-full transition-all duration-500",
+                      "w-[75vw] h-[75vw] max-w-[340px] max-h-[340px]",
+                      isFaceDetected
+                        ? "border-[3px] border-solid border-green-500 shadow-[0_0_0_4px_rgba(34,197,94,0.2)]"
+                        : "border-[3px] border-dashed border-white/70"
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Flip camera button (document only) */}
+              {!capturedImage && overlayType !== "selfie" && (
+                <button
+                  type="button"
+                  onClick={toggleCamera}
+                  className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg bg-black/40 text-white backdrop-blur-sm touch-manipulation"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+              )}
+            </>
           )}
         </div>
 
         <canvas ref={canvasRef} className="hidden" />
 
-        <div className="mt-6 space-y-3">
+        <div className="mt-4 space-y-3">
           {!hideControls && (capturedImage ? (
             <div className="flex gap-3">
               <Button
@@ -315,12 +374,16 @@ export function CameraCapture({
             <Button
               type="button"
               onClick={captureImage}
-              disabled={!isReady}
-              className="h-12 w-full"
+              disabled={!canCapture}
+              className="h-14 w-full text-base font-semibold"
               size="lg"
             >
               <Camera className="mr-2 h-5 w-5" />
-              {isReady ? "Capture" : "Starting camera…"}
+              {!isReady
+                ? "Starting camera…"
+                : overlayType === "document" && !isDocumentDetected
+                ? "Align document to capture"
+                : "Capture"}
             </Button>
           ))}
         </div>
