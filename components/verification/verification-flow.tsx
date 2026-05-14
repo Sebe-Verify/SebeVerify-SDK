@@ -83,7 +83,7 @@ function VerificationFlowInner({
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
         {renderStep()}
       </main>
-      <div className="flex justify-center pt-3 pb-[max(32px,env(safe-area-inset-bottom))]">
+      <div className="flex justify-center pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
         <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-(--sv-ink-4)">
           Secured by <span className="font-semibold">SebeVerify</span>
         </p>
