@@ -1,18 +1,16 @@
 "use client"
 
-import { cn } from "@/lib/utils"
 import type { VerificationStep } from "@/lib/verification-store"
 
 interface ProgressBarProps {
   currentStep: VerificationStep
 }
 
-const steps: { key: VerificationStep; label: string }[] = [
-  { key: 'doc-select', label: 'Document' },
-  { key: 'id-front', label: 'Front' },
-  { key: 'id-back', label: 'Back' },
-  { key: 'selfie', label: 'Selfie' },
-  { key: 'submitting', label: 'Submit' },
+const dotSteps: VerificationStep[] = [
+  'doc-select',
+  'id-front',
+  'selfie',
+  'submitting',
 ]
 
 const stepOrder: VerificationStep[] = [
@@ -29,42 +27,27 @@ const stepOrder: VerificationStep[] = [
 ]
 
 export function ProgressBar({ currentStep }: ProgressBarProps) {
-  const currentIndex = stepOrder.indexOf(currentStep)
-  
   if (currentStep === 'intro' || currentStep === 'submitted' || currentStep === 'error') {
     return null
   }
 
+  const currentIndex = stepOrder.indexOf(currentStep)
+
   return (
-    <div className="w-full px-4 py-3">
-      <div className="flex items-center justify-between gap-1">
-        {steps.map((step, index) => {
-          const stepIndex = stepOrder.indexOf(step.key)
-          const isCompleted = currentIndex > stepIndex
-          const isCurrent =
+    <div className="flex justify-center px-4 pb-0.5 pt-2.5">
+      <div className="sv-dots">
+        {dotSteps.map((step) => {
+          const stepIndex = stepOrder.indexOf(step)
+          const isDone = currentIndex > stepIndex
+          const isActive =
             currentIndex === stepIndex ||
-            (step.key === 'id-front' &&
-              (currentStep === 'review' || currentStep === 'id-camera-prep'))
-          
+            (step === 'id-front' && (currentStep === 'id-camera-prep' || currentStep === 'id-back' || currentStep === 'review'))
+
           return (
-            <div key={step.key} className="flex flex-col items-center flex-1">
-              <div className="flex items-center w-full">
-                <div
-                  className={cn(
-                    "h-1.5 flex-1 rounded-full transition-colors",
-                    isCompleted || isCurrent ? "bg-primary" : "bg-muted"
-                  )}
-                />
-              </div>
-              <span
-                className={cn(
-                  "text-xs mt-1.5 font-medium transition-colors",
-                  isCurrent ? "text-primary" : isCompleted ? "text-foreground" : "text-muted-foreground"
-                )}
-              >
-                {step.label}
-              </span>
-            </div>
+            <div
+              key={step}
+              className={`sv-dot${isActive ? ' active' : isDone ? ' done' : ''}`}
+            />
           )
         })}
       </div>

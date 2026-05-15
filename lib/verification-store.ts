@@ -17,13 +17,11 @@ export type VerificationStep =
   | "submitted"
   | "error";
 
-export type DocumentType = "passport" | "national_id" | "driver_license";
+export type DocumentType = "passport" | "national_id";
 
-// Backend uses hyphenated values; driver_license has no backend equivalent so falls back to national-id
 const BACKEND_DOC_TYPE: Record<DocumentType, string> = {
   passport: "passport",
   national_id: "national-id",
-  driver_license: "national-id",
 };
 
 export interface VerificationData {
@@ -77,6 +75,7 @@ interface VerificationState {
   }) => void;
   getVerificationData: () => VerificationData;
   submitVerification: () => Promise<void>;
+  retrySubmission: () => void;
   reset: () => void;
   resetFlow: () => void;
   goBack: () => void;
@@ -367,6 +366,13 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
       set({ isSubmitting: false });
       submissionAbortController = null;
     }
+  },
+
+  // Retry after a backend failure — clears error state and resubmits using the
+  // already-captured images. Does NOT wipe frontImage/backImage/selfieImage.
+  retrySubmission: () => {
+    set({ errorMessage: null, errorDebug: null });
+    void get().submitVerification();
   },
 
   // Full reset — clears everything including API config. Used when navigating to a

@@ -1,17 +1,16 @@
 "use client"
 
-import { ArrowLeft, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 import type { VerificationStep } from "@/lib/verification-store"
 
 interface StepHeaderProps {
-  onClose?: () => void
+  stepTitle?: string
 }
 
-const noHeaderSteps: VerificationStep[] = ["intro", "doc-select"]
+const noHeaderSteps: VerificationStep[] = ["intro"]
 
-export function StepHeader({ onClose }: StepHeaderProps) {
+export function StepHeader({ stepTitle }: StepHeaderProps) {
   const { currentStep, goBack } = useVerificationStore()
 
   if (noHeaderSteps.includes(currentStep)) {
@@ -24,38 +23,25 @@ export function StepHeader({ onClose }: StepHeaderProps) {
     currentStep !== "submitting"
 
   return (
-    <header className="flex items-center justify-between border-b border-border bg-background px-3 py-3">
-      <div className="w-11 shrink-0">
+    <header className="sv-topbar">
+      <div>
         {canGoBack && (
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             type="button"
             onClick={goBack}
-            className="h-11 w-11 touch-manipulation"
+            className="sv-topbar-btn"
             aria-label="Go back"
           >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+            <ArrowLeft size={18} />
+          </button>
         )}
       </div>
 
-      <div className="min-w-0 flex-1" />
-
-      <div className="w-11 shrink-0 flex justify-end">
-        {onClose && (
-          <Button
-            variant="ghost"
-            size="icon"
-            type="button"
-            onClick={onClose}
-            className="h-11 w-11 touch-manipulation"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </Button>
-        )}
+      <div className="sv-topbar-title">
+        {stepTitle ?? ""}
       </div>
+
+      <div />
     </header>
   )
 }

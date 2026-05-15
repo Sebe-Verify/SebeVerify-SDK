@@ -1,7 +1,6 @@
 "use client"
 
-import { Clock, Bell, CheckCircle2, ArrowRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ArrowRight, Check } from "lucide-react"
 import { useVerificationStore } from "@/lib/verification-store"
 
 interface SubmittedScreenProps {
@@ -9,106 +8,76 @@ interface SubmittedScreenProps {
   returnUrl?: string
 }
 
+function generateRef() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"
+  const year = new Date().getFullYear()
+  let suffix = ""
+  for (let i = 0; i < 4; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
+  return `SV-${year}-${suffix}`
+}
+
 export function SubmittedScreen({ onComplete, returnUrl }: SubmittedScreenProps) {
-  const { documentType, submittedAt } = useVerificationStore()
+  const { submittedAt } = useVerificationStore()
 
   const handleDone = () => {
-    if (onComplete) {
-      onComplete();
-    } else if (returnUrl) {
-      window.location.href = returnUrl;
-    } else if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.href = '/';
-    }
+    if (onComplete) onComplete()
+    else if (returnUrl) window.location.href = returnUrl
+    else if (window.history.length > 1) window.history.back()
+    else window.location.href = "/"
   }
 
-  const getDocumentLabel = () => {
-    switch (documentType) {
-      case 'passport': return 'Passport'
-      case 'national_id': return 'National ID'
-      case 'driver_license': return "Driver's License"
-      default: return 'Document'
-    }
+  const formatVerifiedDate = (iso: string | null) => {
+    const d = iso ? new Date(iso) : new Date()
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) +
+      " · " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
   }
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Just now'
-    const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    })
-  }
+  const ref = generateRef()
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center px-6 py-8">
-      <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 animate-in zoom-in duration-300">
-        <Clock className="h-12 w-12 text-primary" />
+    <div className="flex flex-col flex-1 items-center justify-center bg-(--sv-paper) px-6">
+      {/* Success icon */}
+      <div className="relative w-24 h-24 mb-6 animate-in zoom-in duration-300">
+        {/* Outer halo */}
+        <div className="absolute inset-0 rounded-full bg-(--sv-brand-soft) opacity-50" />
+        {/* Inner halo */}
+        <div className="absolute inset-3 rounded-full bg-(--sv-brand-soft) opacity-70" />
+        {/* Core */}
+        <div className="absolute inset-4.5 rounded-full bg-(--sv-brand) flex items-center justify-center shadow-[0_4px_20px_rgba(44,91,255,0.35)]">
+          <Check size={22} color="white" strokeWidth={2.5} />
+        </div>
       </div>
-      
-      <h1 className="text-2xl font-bold text-foreground mb-2 text-center text-balance">
-        Verification In Progress
+
+      <h1 className="text-[30px] font-bold tracking-tight text-(--sv-ink) mb-2 text-center">
+        You&apos;re verified.
       </h1>
-      
-      <p className="text-muted-foreground text-center mb-8 max-w-sm text-pretty">
-        Your documents have been submitted successfully. Our team will review your information and notify you once the verification is complete.
+      <p className="text-[14px] text-(--sv-ink-3) text-center mb-8 max-w-xs leading-relaxed">
+        All set. A copy of your receipt is in your inbox.
       </p>
 
-      <div className="w-full max-w-sm p-4 rounded-xl bg-card border border-border mb-6">
-        <h3 className="text-sm font-medium text-foreground mb-3">Submission Details</h3>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Status</span>
-            <span className="text-sm font-medium text-primary flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
-              Under Review
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Document</span>
-            <span className="text-sm font-medium text-foreground">{getDocumentLabel()}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Submitted</span>
-            <span className="text-sm font-medium text-foreground">{formatDate(submittedAt)}</span>
-          </div>
+      {/* Receipt */}
+      <div className="w-full max-w-sm rounded-2xl border border-(--sv-hairline) bg-(--sv-card) overflow-hidden shadow-(--sv-shadow-card) mb-8">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-(--sv-hairline-2)">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-(--sv-ink-4)">Reference</span>
+          <span className="text-[14px] font-semibold text-(--sv-ink)">{ref}</span>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3.5">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-(--sv-ink-4)">Verified</span>
+          <span className="text-[14px] font-semibold text-(--sv-ink)">{formatVerifiedDate(submittedAt)}</span>
         </div>
       </div>
 
-      <div className="w-full max-w-sm p-4 rounded-xl bg-muted/50 border border-border mb-8">
-        <div className="flex items-start gap-3">
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Bell className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <h4 className="text-sm font-medium text-foreground mb-1">What happens next?</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              You will receive a notification once your verification is complete. This typically takes 1-2 business days.
-            </p>
-          </div>
+      {/* CTA */}
+      <button
+        type="button"
+        onClick={handleDone}
+        className="w-full max-w-sm h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation mb-2"
+      >
+        <span>Continue to verify</span>
+        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+          <ArrowRight size={16} />
         </div>
-      </div>
-
-      <div className="w-full max-w-sm space-y-3">
-        <Button
-          onClick={handleDone}
-          className="w-full h-12"
-          size="lg"
-        >
-          Done
-          <ArrowRight className="h-5 w-5 ml-2" />
-        </Button>
-      </div>
-
-      <p className="text-xs text-center text-muted-foreground mt-6 max-w-xs">
-        Powered by SebeVerify. Your data is encrypted and securely stored.
-      </p>
+      </button>
     </div>
   )
 }
