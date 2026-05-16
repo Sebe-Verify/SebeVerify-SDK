@@ -58,7 +58,8 @@ export function SelfieCapture() {
     const start = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+          // Request 1080p so the baseline image carries enough detail for ID face matching
+          video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false,
         })
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
@@ -103,20 +104,23 @@ export function SelfieCapture() {
     await submitVerification()
   }
 
-  const captureSnapshot = useCallback((): string | null => {
+  const captureSnapshot = useCallback((highQuality: boolean): string | null => {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return null
-    const MAX_WIDTH = 480
-    const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1
-    canvas.width = video.videoWidth * scale
-    canvas.height = video.videoHeight * scale
+    // Baseline goes to face-matching → keep full source resolution & near-lossless JPEG.
+    // Liveness frames are only used to prove motion → smaller + cheaper to upload.
+    const maxWidth = highQuality ? 1920 : 720
+    const quality = highQuality ? 0.92 : 0.8
+    const scale = video.videoWidth > maxWidth ? maxWidth / video.videoWidth : 1
+    canvas.width = Math.round(video.videoWidth * scale)
+    canvas.height = Math.round(video.videoHeight * scale)
     const ctx = canvas.getContext("2d")
     if (!ctx) return null
     ctx.translate(canvas.width, 0)
     ctx.scale(-1, 1)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    return canvas.toDataURL("image/jpeg", 0.7)
+    return canvas.toDataURL("image/jpeg", quality)
   }, [])
 
   const lastVideoTimeRef = useRef<number>(-1)
@@ -178,7 +182,7 @@ export function SelfieCapture() {
         if (baselineHoldStartRef.current === 0) {
           baselineHoldStartRef.current = performance.now()
         } else if (performance.now() - baselineHoldStartRef.current >= BASELINE_HOLD_MS) {
-          const snap = captureSnapshot()
+          const snap = captureSnapshot(true)
           if (snap) {
             baselineImageRef.current = snap
             setBaselineImage(snap)
@@ -221,7 +225,7 @@ export function SelfieCapture() {
             if (performance.now() - holdStartTimeRef.current >= required) {
               cooldownRef.current = true
               holdStartTimeRef.current = 0
-              const snap = captureSnapshot()
+              const snap = captureSnapshot(false)
               setCapturedSnapshots(prev => snap ? [...prev, snap] : prev)
               setCurrentChallengeIndex(ci => {
                 const next = ci + 1
