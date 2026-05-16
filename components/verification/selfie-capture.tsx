@@ -4,7 +4,11 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { Category } from "@mediapipe/tasks-vision"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
-import { ArrowRight, Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight as ArrowRightIcon } from "lucide-react"
+import { ArrowRight, Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight as ArrowRightIcon, Camera } from "lucide-react"
+
+// Baseline-capture timings — kept here so the analyze loop and the UI agree
+const BASELINE_HOLD_MS = 800        // how long the face must stay centered before snap
+const BASELINE_CONFIRM_MS = 700     // how long "Got it!" stays on screen before challenges start
 
 type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right"
 const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"]
@@ -35,6 +39,12 @@ export function SelfieCapture() {
   const [livenessPassed, setLivenessPassed] = useState(false)
   const [capturedSnapshots, setCapturedSnapshots] = useState<string[]>([])
   const cooldownRef = useRef(false)
+
+  // Baseline (neutral, centered) selfie — captured before challenges and sent to backend for face matching
+  const [baselineImage, setBaselineImage] = useState<string | null>(null)
+  const baselineImageRef = useRef<string | null>(null)
+  const baselineHoldStartRef = useRef<number>(0)
+  const [baselineJustCaptured, setBaselineJustCaptured] = useState(false)
 
   const [faceAligned, setFaceAligned] = useState(false)
   const [faceStatus, setFaceStatus] = useState<"none" | "too_far" | "too_close" | "off_center" | "aligned">("none")
@@ -86,8 +96,10 @@ export function SelfieCapture() {
   }, [challenges.length, currentChallengeIndex, livenessPassed])
 
   const handleComplete = async () => {
+    // Challenge snapshots prove liveness; baseline (neutral, centered) is what the backend uses for face matching
     setLivenessImages(capturedSnapshots)
-    setSelfieImage(capturedSnapshots[capturedSnapshots.length - 1])
+    const faceMatchImage = baselineImage ?? capturedSnapshots[capturedSnapshots.length - 1]
+    if (faceMatchImage) setSelfieImage(faceMatchImage)
     await submitVerification()
   }
 
@@ -159,6 +171,26 @@ export function SelfieCapture() {
 
       if (!faceAlignedRef.current) {
         holdStartTimeRef.current = 0
+        baselineHoldStartRef.current = 0
+      } else if (!baselineImageRef.current) {
+        // Phase 1 — capture a neutral, centered baseline before any challenge expression distorts the face.
+        // This image is what the backend uses for face matching against the ID.
+        if (baselineHoldStartRef.current === 0) {
+          baselineHoldStartRef.current = performance.now()
+        } else if (performance.now() - baselineHoldStartRef.current >= BASELINE_HOLD_MS) {
+          const snap = captureSnapshot()
+          if (snap) {
+            baselineImageRef.current = snap
+            setBaselineImage(snap)
+            setBaselineJustCaptured(true)
+            // Block challenge evaluation while the "Got it!" confirmation is showing
+            cooldownRef.current = true
+            setTimeout(() => {
+              setBaselineJustCaptured(false)
+              cooldownRef.current = false
+            }, BASELINE_CONFIRM_MS)
+          }
+        }
       } else if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
         const shapes: Category[] = results.faceBlendshapes[0].categories
         const currentChallenge = challenges[currentChallengeIndex]
@@ -216,6 +248,8 @@ export function SelfieCapture() {
   const completedCount = currentChallengeIndex
   const currentChallenge = challenges[currentChallengeIndex]
 
+  const baselineCaptured = !!baselineImage
+
   // Hint pill text
   const hintText = (): string => {
     if (isInitializing) return "Loading face detection…"
@@ -227,6 +261,8 @@ export function SelfieCapture() {
       if (faceStatus === "off_center") return "Center your face"
       return "Look at the camera"
     }
+    if (baselineJustCaptured) return "Got it — starting checks…"
+    if (!baselineCaptured) return "Hold still…"
     if (currentChallenge) return CHALLENGE_LABELS[currentChallenge]
     return "Hold still…"
   }
@@ -234,6 +270,10 @@ export function SelfieCapture() {
   // Title shown above circle
   const titleText = livenessPassed
     ? "All done!"
+    : baselineJustCaptured
+    ? "Got it!"
+    : faceAligned && !baselineCaptured
+    ? "Hold still…"
     : faceAligned && currentChallenge
     ? CHALLENGE_LABELS[currentChallenge]
     : "Center your face"
@@ -246,6 +286,10 @@ export function SelfieCapture() {
         <p className="sv-lede">
           {livenessPassed
             ? "Your liveness check is complete."
+            : baselineJustCaptured
+            ? "Now we'll run a few quick checks."
+            : faceAligned && !baselineCaptured
+            ? "We're taking a reference photo to match against your ID."
             : "We'll detect motion to confirm it's you. Nothing is stored after."}
         </p>
       </div>
@@ -275,6 +319,8 @@ export function SelfieCapture() {
           <div className={`absolute inset-0 rounded-full border-[3px] pointer-events-none transition-all duration-500 ${
             livenessPassed
               ? "border-(--sv-success)"
+              : baselineJustCaptured
+              ? "border-(--sv-success) shadow-[0_0_0_6px_rgba(34,197,94,0.18)]"
               : faceAligned
               ? "border-(--sv-brand)"
               : faceStatus === "too_close"
@@ -292,7 +338,15 @@ export function SelfieCapture() {
         <div className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-full bg-(--sv-card) border border-(--sv-hairline) shadow-sm">
           {isInitializing && <Loader2 size={14} className="animate-spin text-(--sv-brand) shrink-0" />}
           {livenessPassed && <CheckCircle2 size={14} className="text-(--sv-success) shrink-0" />}
-          {!isInitializing && !livenessPassed && currentChallenge && CHALLENGE_ICONS[currentChallenge]}
+          {!isInitializing && !livenessPassed && baselineJustCaptured && (
+            <CheckCircle2 size={14} className="text-(--sv-success) shrink-0" />
+          )}
+          {!isInitializing && !livenessPassed && !baselineJustCaptured && faceAligned && !baselineCaptured && (
+            <Camera size={14} className="text-(--sv-brand) shrink-0" />
+          )}
+          {!isInitializing && !livenessPassed && baselineCaptured && !baselineJustCaptured && currentChallenge && (
+            CHALLENGE_ICONS[currentChallenge]
+          )}
           <span className="text-[13px] font-medium text-(--sv-ink-2)">{hintText()}</span>
         </div>
 
