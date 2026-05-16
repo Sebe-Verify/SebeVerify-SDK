@@ -16,7 +16,7 @@ export function CameraAccessScreen() {
   return (
     <div className="flex flex-col flex-1 bg-(--sv-paper)">
       <div className="flex-1 px-5 pt-6 pb-4">
-        <h1 className="text-[28px] font-bold leading-tight tracking-[-0.022em] text-(--sv-ink) mb-6">
+        <h1 className="sv-h1 mb-6">
           A few things<br />before we start.
         </h1>
 
@@ -37,14 +37,14 @@ export function CameraAccessScreen() {
       </div>
 
       {/* Bottom CTA */}
-      <div className="px-5 pb-5 pt-2">
+      <div className="px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-2">
         <button
           type="button"
           onClick={() => setStep("id-front")}
-          className="w-full h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
+          className="sv-cta-arrow w-full"
         >
           <span>Open camera</span>
-          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+          <div className="sv-cta-arrow-chip">
             <ArrowRight size={16} />
           </div>
         </button>

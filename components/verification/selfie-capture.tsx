@@ -4,7 +4,11 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { Category } from "@mediapipe/tasks-vision"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
-import { ArrowRight, Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight as ArrowRightIcon } from "lucide-react"
+import { ArrowRight, Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight as ArrowRightIcon, Camera } from "lucide-react"
+
+// Baseline-capture timings — kept here so the analyze loop and the UI agree
+const BASELINE_HOLD_MS = 800        // how long the face must stay centered before snap
+const BASELINE_CONFIRM_MS = 700     // how long "Got it!" stays on screen before challenges start
 
 type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right"
 const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"]
@@ -36,6 +40,12 @@ export function SelfieCapture() {
   const [capturedSnapshots, setCapturedSnapshots] = useState<string[]>([])
   const cooldownRef = useRef(false)
 
+  // Baseline (neutral, centered) selfie — captured before challenges and sent to backend for face matching
+  const [baselineImage, setBaselineImage] = useState<string | null>(null)
+  const baselineImageRef = useRef<string | null>(null)
+  const baselineHoldStartRef = useRef<number>(0)
+  const [baselineJustCaptured, setBaselineJustCaptured] = useState(false)
+
   const [faceAligned, setFaceAligned] = useState(false)
   const [faceStatus, setFaceStatus] = useState<"none" | "too_far" | "too_close" | "off_center" | "aligned">("none")
   const faceAlignedRef = useRef(false)
@@ -48,7 +58,8 @@ export function SelfieCapture() {
     const start = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+          // Request 1080p so the baseline image carries enough detail for ID face matching
+          video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false,
         })
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
@@ -86,25 +97,30 @@ export function SelfieCapture() {
   }, [challenges.length, currentChallengeIndex, livenessPassed])
 
   const handleComplete = async () => {
+    // Challenge snapshots prove liveness; baseline (neutral, centered) is what the backend uses for face matching
     setLivenessImages(capturedSnapshots)
-    setSelfieImage(capturedSnapshots[capturedSnapshots.length - 1])
+    const faceMatchImage = baselineImage ?? capturedSnapshots[capturedSnapshots.length - 1]
+    if (faceMatchImage) setSelfieImage(faceMatchImage)
     await submitVerification()
   }
 
-  const captureSnapshot = useCallback((): string | null => {
+  const captureSnapshot = useCallback((highQuality: boolean): string | null => {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return null
-    const MAX_WIDTH = 480
-    const scale = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1
-    canvas.width = video.videoWidth * scale
-    canvas.height = video.videoHeight * scale
+    // Baseline goes to face-matching → keep full source resolution & near-lossless JPEG.
+    // Liveness frames are only used to prove motion → smaller + cheaper to upload.
+    const maxWidth = highQuality ? 1920 : 720
+    const quality = highQuality ? 0.92 : 0.8
+    const scale = video.videoWidth > maxWidth ? maxWidth / video.videoWidth : 1
+    canvas.width = Math.round(video.videoWidth * scale)
+    canvas.height = Math.round(video.videoHeight * scale)
     const ctx = canvas.getContext("2d")
     if (!ctx) return null
     ctx.translate(canvas.width, 0)
     ctx.scale(-1, 1)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    return canvas.toDataURL("image/jpeg", 0.7)
+    return canvas.toDataURL("image/jpeg", quality)
   }, [])
 
   const lastVideoTimeRef = useRef<number>(-1)
@@ -159,6 +175,26 @@ export function SelfieCapture() {
 
       if (!faceAlignedRef.current) {
         holdStartTimeRef.current = 0
+        baselineHoldStartRef.current = 0
+      } else if (!baselineImageRef.current) {
+        // Phase 1 — capture a neutral, centered baseline before any challenge expression distorts the face.
+        // This image is what the backend uses for face matching against the ID.
+        if (baselineHoldStartRef.current === 0) {
+          baselineHoldStartRef.current = performance.now()
+        } else if (performance.now() - baselineHoldStartRef.current >= BASELINE_HOLD_MS) {
+          const snap = captureSnapshot(true)
+          if (snap) {
+            baselineImageRef.current = snap
+            setBaselineImage(snap)
+            setBaselineJustCaptured(true)
+            // Block challenge evaluation while the "Got it!" confirmation is showing
+            cooldownRef.current = true
+            setTimeout(() => {
+              setBaselineJustCaptured(false)
+              cooldownRef.current = false
+            }, BASELINE_CONFIRM_MS)
+          }
+        }
       } else if (!cooldownRef.current && results.faceBlendshapes && results.faceBlendshapes.length > 0) {
         const shapes: Category[] = results.faceBlendshapes[0].categories
         const currentChallenge = challenges[currentChallengeIndex]
@@ -189,7 +225,7 @@ export function SelfieCapture() {
             if (performance.now() - holdStartTimeRef.current >= required) {
               cooldownRef.current = true
               holdStartTimeRef.current = 0
-              const snap = captureSnapshot()
+              const snap = captureSnapshot(false)
               setCapturedSnapshots(prev => snap ? [...prev, snap] : prev)
               setCurrentChallengeIndex(ci => {
                 const next = ci + 1
@@ -216,6 +252,8 @@ export function SelfieCapture() {
   const completedCount = currentChallengeIndex
   const currentChallenge = challenges[currentChallengeIndex]
 
+  const baselineCaptured = !!baselineImage
+
   // Hint pill text
   const hintText = (): string => {
     if (isInitializing) return "Loading face detection…"
@@ -227,6 +265,8 @@ export function SelfieCapture() {
       if (faceStatus === "off_center") return "Center your face"
       return "Look at the camera"
     }
+    if (baselineJustCaptured) return "Got it — starting checks…"
+    if (!baselineCaptured) return "Hold still…"
     if (currentChallenge) return CHALLENGE_LABELS[currentChallenge]
     return "Hold still…"
   }
@@ -234,6 +274,10 @@ export function SelfieCapture() {
   // Title shown above circle
   const titleText = livenessPassed
     ? "All done!"
+    : baselineJustCaptured
+    ? "Got it!"
+    : faceAligned && !baselineCaptured
+    ? "Hold still…"
     : faceAligned && currentChallenge
     ? CHALLENGE_LABELS[currentChallenge]
     : "Center your face"
@@ -242,12 +286,14 @@ export function SelfieCapture() {
     <div className="flex flex-col flex-1 bg-(--sv-paper)">
       {/* Header text */}
       <div className="px-5 pt-5 pb-3 text-center">
-        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-(--sv-ink) mb-1">
-          {titleText}
-        </h2>
-        <p className="text-[13px] text-(--sv-ink-3) leading-relaxed">
+        <h2 className="sv-h2 mb-1">{titleText}</h2>
+        <p className="sv-lede">
           {livenessPassed
             ? "Your liveness check is complete."
+            : baselineJustCaptured
+            ? "Now we'll run a few quick checks."
+            : faceAligned && !baselineCaptured
+            ? "We're taking a reference photo to match against your ID."
             : "We'll detect motion to confirm it's you. Nothing is stored after."}
         </p>
       </div>
@@ -276,11 +322,13 @@ export function SelfieCapture() {
           {/* Ring border */}
           <div className={`absolute inset-0 rounded-full border-[3px] pointer-events-none transition-all duration-500 ${
             livenessPassed
-              ? "border-green-500"
+              ? "border-(--sv-success)"
+              : baselineJustCaptured
+              ? "border-(--sv-success) shadow-[0_0_0_6px_rgba(34,197,94,0.18)]"
               : faceAligned
               ? "border-(--sv-brand)"
               : faceStatus === "too_close"
-              ? "border-amber-400 animate-pulse"
+              ? "border-(--sv-warning) animate-pulse"
               : "border-white/30"
           }`} />
 
@@ -293,8 +341,16 @@ export function SelfieCapture() {
         {/* Hint pill below circle */}
         <div className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-full bg-(--sv-card) border border-(--sv-hairline) shadow-sm">
           {isInitializing && <Loader2 size={14} className="animate-spin text-(--sv-brand) shrink-0" />}
-          {livenessPassed && <CheckCircle2 size={14} className="text-green-500 shrink-0" />}
-          {!isInitializing && !livenessPassed && currentChallenge && CHALLENGE_ICONS[currentChallenge]}
+          {livenessPassed && <CheckCircle2 size={14} className="text-(--sv-success) shrink-0" />}
+          {!isInitializing && !livenessPassed && baselineJustCaptured && (
+            <CheckCircle2 size={14} className="text-(--sv-success) shrink-0" />
+          )}
+          {!isInitializing && !livenessPassed && !baselineJustCaptured && faceAligned && !baselineCaptured && (
+            <Camera size={14} className="text-(--sv-brand) shrink-0" />
+          )}
+          {!isInitializing && !livenessPassed && baselineCaptured && !baselineJustCaptured && currentChallenge && (
+            CHALLENGE_ICONS[currentChallenge]
+          )}
           <span className="text-[13px] font-medium text-(--sv-ink-2)">{hintText()}</span>
         </div>
 
@@ -321,15 +377,15 @@ export function SelfieCapture() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Continue button — only when passed */}
-      <div className="px-5 pb-5 pt-4">
+      <div className="px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-4">
         {livenessPassed ? (
           <button
             type="button"
             onClick={() => void handleComplete()}
-            className="w-full h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
+            className="sv-cta-arrow w-full"
           >
             <span>Continue to submit</span>
-            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+            <div className="sv-cta-arrow-chip">
               <ArrowRight size={16} />
             </div>
           </button>

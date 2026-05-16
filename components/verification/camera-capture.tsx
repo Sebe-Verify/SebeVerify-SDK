@@ -235,9 +235,9 @@ export function CameraCapture({
             <div className={cn(
               "absolute inset-0 rounded-full border-[3px] transition-all duration-500",
               isFaceDetected
-                ? "border-green-500 shadow-[0_0_0_4px_rgba(34,197,94,0.2)]"
+                ? "border-(--sv-success) shadow-[0_0_0_4px_rgba(34,197,94,0.2)]"
                 : isFaceTooClose
-                ? "border-amber-400 animate-pulse"
+                ? "border-(--sv-warning) animate-pulse"
                 : "border-white/50 border-dashed"
             )} />
           </div>
@@ -274,7 +274,7 @@ export function CameraCapture({
                   className={cn(
                     "relative rounded-xl border-2 transition-all duration-300",
                     documentAspectRatio >= 1 ? "w-[88%]" : "h-[88%]",
-                    isDocumentDetected ? "border-green-500" : "border-white/70"
+                    isDocumentDetected ? "border-(--sv-success)" : "border-white/70"
                   )}
                   style={{ aspectRatio: documentAspectRatio }}
                 >
@@ -290,7 +290,7 @@ export function CameraCapture({
                       className={cn(
                         "absolute w-6 h-6 border-transparent transition-colors duration-300",
                         cls,
-                        isDocumentDetected ? "border-green-500" : "border-white"
+                        isDocumentDetected ? "border-(--sv-success)" : "border-white"
                       )}
                     />
                   ))}
@@ -300,7 +300,7 @@ export function CameraCapture({
                     <div className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-300",
                       isDocumentDetected
-                        ? "bg-green-500 text-white"
+                        ? "bg-(--sv-success) text-white"
                         : "bg-black/50 text-white/80 backdrop-blur-sm"
                     )}>
                       {isDocumentDetected && (

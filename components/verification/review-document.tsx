@@ -25,7 +25,7 @@ export function ReviewDocument() {
   return (
     <div className="flex flex-col flex-1 px-5 py-6">
       <div className="mb-6">
-        <h1 className="sv-display mb-2">Review your document</h1>
+        <h1 className="sv-h1 mb-2">Review your document</h1>
         <p className="sv-lede">
           Make sure the images are clear and all information is visible.
         </p>

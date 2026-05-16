@@ -21,15 +21,13 @@ export function ErrorScreen({ onClose }: ErrorScreenProps) {
     <div className="flex flex-col flex-1 items-center justify-center px-6 py-10">
       {/* Icon */}
       <div className="mb-6 animate-in zoom-in duration-300">
-        <div className="flex h-22 w-22 items-center justify-center rounded-full bg-[rgba(239,68,68,0.1)]">
+        <div className="flex h-22 w-22 items-center justify-center rounded-full bg-(--sv-error)/10">
           <AlertCircle size={44} color="var(--sv-error)" strokeWidth={1.75} />
         </div>
       </div>
 
-      <h1 className="mb-2 text-center text-[22px] font-semibold tracking-tight text-(--sv-ink)">
-        Verification failed
-      </h1>
-      <p className="mb-6 max-w-sm text-center text-sm text-(--sv-ink-3)">
+      <h1 className="sv-h2 mb-2 text-center">Verification failed</h1>
+      <p className="sv-lede mb-6 max-w-sm text-center">
         {errorMessage || "We couldn't verify your identity. Please try again."}
       </p>
 
