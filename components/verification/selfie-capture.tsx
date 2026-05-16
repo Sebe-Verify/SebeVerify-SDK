@@ -242,10 +242,8 @@ export function SelfieCapture() {
     <div className="flex flex-col flex-1 bg-(--sv-paper)">
       {/* Header text */}
       <div className="px-5 pt-5 pb-3 text-center">
-        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-(--sv-ink) mb-1">
-          {titleText}
-        </h2>
-        <p className="text-[13px] text-(--sv-ink-3) leading-relaxed">
+        <h2 className="sv-h2 mb-1">{titleText}</h2>
+        <p className="sv-lede">
           {livenessPassed
             ? "Your liveness check is complete."
             : "We'll detect motion to confirm it's you. Nothing is stored after."}
@@ -276,11 +274,11 @@ export function SelfieCapture() {
           {/* Ring border */}
           <div className={`absolute inset-0 rounded-full border-[3px] pointer-events-none transition-all duration-500 ${
             livenessPassed
-              ? "border-green-500"
+              ? "border-(--sv-success)"
               : faceAligned
               ? "border-(--sv-brand)"
               : faceStatus === "too_close"
-              ? "border-amber-400 animate-pulse"
+              ? "border-(--sv-warning) animate-pulse"
               : "border-white/30"
           }`} />
 
@@ -293,7 +291,7 @@ export function SelfieCapture() {
         {/* Hint pill below circle */}
         <div className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-full bg-(--sv-card) border border-(--sv-hairline) shadow-sm">
           {isInitializing && <Loader2 size={14} className="animate-spin text-(--sv-brand) shrink-0" />}
-          {livenessPassed && <CheckCircle2 size={14} className="text-green-500 shrink-0" />}
+          {livenessPassed && <CheckCircle2 size={14} className="text-(--sv-success) shrink-0" />}
           {!isInitializing && !livenessPassed && currentChallenge && CHALLENGE_ICONS[currentChallenge]}
           <span className="text-[13px] font-medium text-(--sv-ink-2)">{hintText()}</span>
         </div>
@@ -321,15 +319,15 @@ export function SelfieCapture() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Continue button — only when passed */}
-      <div className="px-5 pb-5 pt-4">
+      <div className="px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-4">
         {livenessPassed ? (
           <button
             type="button"
             onClick={() => void handleComplete()}
-            className="w-full h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
+            className="sv-cta-arrow w-full"
           >
             <span>Continue to submit</span>
-            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+            <div className="sv-cta-arrow-chip">
               <ArrowRight size={16} />
             </div>
           </button>

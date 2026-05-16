@@ -195,10 +195,68 @@
   color: var(--sv-ink);
 }
 
+/* Unified heading scale — use sv-h1 for primary screen headings, sv-h2 for sub-screens */
+.sv-h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  line-height: 1.12;
+  color: var(--sv-ink);
+}
+.sv-h1-lg {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  color: var(--sv-ink);
+}
+.sv-h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--sv-ink);
+}
+
 .sv-lede {
-  font-size: 14.5px;
+  font-size: 14px;
   line-height: 1.55;
-  color: var(--sv-ink-2);
+  color: var(--sv-ink-3);
+}
+
+/* Unified primary "next step" CTA — h-14 pill with right-aligned arrow chip.
+   Replaces the inline copies scattered across intro/doc-select/camera/selfie/submitted. */
+.sv-cta-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 20px;
+  border-radius: var(--sv-radius-md);
+  background: var(--sv-brand);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(44,91,255,0.3);
+  transition: transform 0.1s, background 0.15s, opacity 0.15s;
+  touch-action: manipulation;
+}
+.sv-cta-arrow:active:not(:disabled) { transform: scale(0.98); }
+.sv-cta-arrow:hover:not(:disabled) { background: var(--sv-brand-ink); }
+.sv-cta-arrow:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+.sv-cta-arrow-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
 }
 
 .sv-cta {
@@ -503,6 +561,15 @@
   height: 5px;
   border-radius: var(--sv-radius-pill);
   transition: width 0.4s cubic-bezier(.4,0,.2,1), background 0.3s;
+}
+
+/* Indeterminate progress bar — used in submitting screen */
+.sv-indeterminate-bar {
+  animation: sv-indeterminate 1.4s cubic-bezier(.4,0,.2,1) infinite;
+}
+@keyframes sv-indeterminate {
+  0%   { left: -33%; }
+  100% { left: 100%; }
 }
 
 .sv-loader-wrap {

@@ -49,27 +49,27 @@ export function IntroScreen() {
         </div>
 
         {/* Headline */}
-        <h1 className="text-[32px] font-bold leading-[1.1] tracking-[-0.025em] text-(--sv-ink) text-left w-full mb-3">
+        <h1 className="sv-h1-lg mb-3 w-full text-left">
           Verify your identity in{" "}
           <span className="text-(--sv-ink-4)">about</span>{" "}
           two minutes.
         </h1>
 
         {/* Subtext */}
-        <p className="text-sm leading-relaxed text-(--sv-ink-3) text-left w-full">
+        <p className="sv-lede w-full text-left">
           A quick, secure check. We&apos;ll guide you the whole way.
         </p>
       </div>
 
       {/* Bottom action */}
-      <div className="px-5 pb-5 pt-4">
+      <div className="px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-4">
         <button
           type="button"
           onClick={() => setStep("doc-select")}
-          className="w-full h-14 rounded-2xl bg-(--sv-brand) text-white text-[15px] font-semibold flex items-center justify-between px-5 shadow-[0_4px_16px_rgba(44,91,255,0.3)] active:scale-[0.98] transition-transform touch-manipulation"
+          className="sv-cta-arrow w-full"
         >
           <span>Begin verification</span>
-          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+          <div className="sv-cta-arrow-chip">
             <ArrowRight size={16} />
           </div>
         </button>
