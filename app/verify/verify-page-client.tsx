@@ -69,6 +69,7 @@ export function VerifyPageClient({
   const setSessionId = useVerificationStore((state) => state.setSessionId);
   const setApiConfig = useVerificationStore((state) => state.setApiConfig);
   const reset = useVerificationStore((state) => state.reset);
+  const backendSessionId = useVerificationStore((state) => state.backendSessionId);
 
   useEffect(() => {
     const {
@@ -98,7 +99,10 @@ export function VerifyPageClient({
 
   const handleComplete = () => {
     if (isValidReturnUrl(returnUrl)) {
-      window.location.href = buildRedirectUrl(returnUrl, "success", sessionId);
+      // Prefer backendSessionId — it's what the webhook sends as meta_data.session_id.
+      // Fall back to the client-side UUID for mock mode where there's no real backend session.
+      const sid = backendSessionId || sessionId;
+      window.location.href = buildRedirectUrl(returnUrl, "success", sid);
     } else {
       // No returnUrl — just go back or to the root
       if (window.history.length > 1) {
