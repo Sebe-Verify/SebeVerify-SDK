@@ -70,6 +70,7 @@ export function VerifyPageClient({
   const setApiConfig = useVerificationStore((state) => state.setApiConfig);
   const reset = useVerificationStore((state) => state.reset);
   const backendSessionId = useVerificationStore((state) => state.backendSessionId);
+  const currentStep = useVerificationStore((state) => state.currentStep);
 
   useEffect(() => {
     const {
@@ -96,6 +97,18 @@ export function VerifyPageClient({
       apiKey: apiKey || undefined,
     });
   }, [sessionIdFromPath, reset, setApiConfig, setSessionId]);
+
+  // Auto-redirect as soon as upload completes. The merchant webhook arrives shortly
+  // after; the merchant DB must have the backendSessionId before that happens.
+  // Waiting for the user to click "Done" is too slow — all webhook retries exhaust first.
+  useEffect(() => {
+    if (currentStep !== "submitted" || !backendSessionId || !isValidReturnUrl(returnUrl)) return;
+    const sid = backendSessionId;
+    const timer = setTimeout(() => {
+      window.location.href = buildRedirectUrl(returnUrl!, "success", sid);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [currentStep, backendSessionId, returnUrl]);
 
   const handleComplete = () => {
     if (isValidReturnUrl(returnUrl)) {

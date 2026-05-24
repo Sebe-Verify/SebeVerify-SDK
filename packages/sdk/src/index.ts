@@ -117,75 +117,136 @@ class SebeVerifySDK {
   private createModal(verificationUrl: string): void {
     if (this.modalElement) return;
 
+    // Inject Geist font if not already on the page
+    if (!document.getElementById("sv-geist-font")) {
+      const link = document.createElement("link");
+      link.id = "sv-geist-font";
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap";
+      document.head.appendChild(link);
+    }
+
+    const font = "'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif";
+
     const overlay = document.createElement("div");
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-labelledby", "sebeverify-modal-title");
     overlay.style.cssText = `
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.9); z-index: 9999;
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+      background: rgba(14,19,34,0.5);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      font-family: ${font};
+      -webkit-font-smoothing: antialiased;
+    `;
+
+    const card = document.createElement("div");
+    card.style.cssText = `
+      background: #FAFAF6;
+      background-image: radial-gradient(ellipse 90% 50% at 50% -5%, rgba(44,91,255,0.07) 0%, transparent 70%);
+      border-radius: 26px;
+      padding: 32px 28px 28px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 1px 0 rgba(14,19,34,0.02), 0 24px 48px -12px rgba(14,19,34,0.22);
+      border: 1px solid #E7E6E0;
+      text-align: center;
+    `;
+
+    // Icon
+    const iconWrap = document.createElement("div");
+    iconWrap.style.cssText = `
+      width: 72px; height: 72px; border-radius: 50%;
+      background: #ECF0FF;
       display: flex; align-items: center; justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0 auto 20px;
     `;
+    iconWrap.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2C5BFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
 
-    const container = document.createElement("div");
-    container.style.cssText = `
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      border-radius: 20px; padding: 40px;
-      max-width: 420px; text-align: center; color: white;
-      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-    `;
-
-    const icon = document.createElement("div");
-    icon.style.cssText = "font-size: 56px; margin-bottom: 20px;";
-    icon.textContent = "🔒";
-
+    // Title
     const title = document.createElement("h2");
     title.id = "sebeverify-modal-title";
-    title.style.cssText = "margin: 0 0 12px; font-size: 24px; font-weight: 600;";
-    title.textContent = "Verification Ready";
+    title.style.cssText = `
+      margin: 0 0 8px; padding: 0;
+      font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2;
+      color: #0E1322; font-family: ${font};
+    `;
+    title.textContent = "Identity Verification";
 
+    // Description
     const description = document.createElement("p");
-    description.style.cssText = "color: #9ca3af; margin: 0 0 32px; line-height: 1.5;";
-    description.textContent = "Click below to complete your identity verification";
+    description.style.cssText = `
+      margin: 0 0 24px; padding: 0;
+      font-size: 14px; line-height: 1.55; color: #8B8F9C; font-family: ${font};
+    `;
+    description.textContent = "Verify your identity to continue. You'll need your ID document and a selfie — takes about 2 minutes.";
 
-    const startLink = document.createElement("a");
-    startLink.href = verificationUrl;
-    startLink.textContent = "Start Verification";
-    startLink.style.cssText = `
-      display: block;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      text-decoration: none;
-      padding: 16px 32px;
-      border-radius: 12px;
-      font-weight: 600;
-      font-size: 16px;
-      margin-bottom: 20px;
+    // Info strip
+    const infoStrip = document.createElement("div");
+    infoStrip.style.cssText = `
+      display: flex; align-items: center; gap: 8px;
+      background: #FFFFFF; border: 1px solid #E7E6E0; border-radius: 12px;
+      padding: 11px 14px; margin-bottom: 20px; text-align: left;
+      box-shadow: 0 1px 0 rgba(14,19,34,0.02), 0 4px 8px -4px rgba(14,19,34,0.08);
+    `;
+    infoStrip.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2C5BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span style="font-size:13px;color:#4B5063;font-family:${font};">ID document &amp; selfie · ~2 min</span>
     `;
 
+    // CTA button
+    const startLink = document.createElement("a");
+    startLink.href = verificationUrl;
+    startLink.style.cssText = `
+      display: flex; align-items: center; justify-content: space-between;
+      height: 56px; padding: 0 20px; margin-bottom: 10px;
+      background: #2C5BFF; color: #fff; text-decoration: none;
+      border-radius: 18px; font-family: ${font};
+      font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+      box-shadow: 0 4px 16px rgba(44,91,255,0.3);
+      transition: background 0.15s;
+    `;
+    startLink.innerHTML = `
+      <span>Start Verification</span>
+      <span style="
+        display:flex;align-items:center;justify-content:center;
+        width:32px;height:32px;border-radius:12px;
+        background:rgba(255,255,255,0.2);flex-shrink:0;
+      ">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </span>
+    `;
+    startLink.addEventListener("mouseover", () => { startLink.style.background = "#0F36D9"; });
+    startLink.addEventListener("mouseout", () => { startLink.style.background = "#2C5BFF"; });
+
+    // Cancel button
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
     cancelBtn.textContent = "Cancel";
     cancelBtn.style.cssText = `
-      background: transparent;
-      border: 1px solid #4b5563;
-      color: #9ca3af;
-      padding: 12px 24px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 40px; margin-bottom: 20px;
+      background: transparent; border: none;
+      color: #8B8F9C; font-family: ${font};
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: color 0.15s;
+    `;
+    cancelBtn.addEventListener("mouseover", () => { cancelBtn.style.color = "#4B5063"; });
+    cancelBtn.addEventListener("mouseout", () => { cancelBtn.style.color = "#8B8F9C"; });
+
+    // Footer divider + trust line
+    const footer = document.createElement("div");
+    footer.style.cssText = `
+      padding-top: 16px; border-top: 1px solid #E7E6E0;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    `;
+    footer.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C2C5CE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span style="font-size:11px;color:#C2C5CE;font-family:'Geist Mono',ui-monospace,monospace;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;">Secured by SebeVerify</span>
     `;
 
-    const footer = document.createElement("div");
-    footer.style.cssText = "margin-top: 24px; padding-top: 24px; border-top: 1px solid #374151;";
-    const footerText = document.createElement("p");
-    footerText.style.cssText = "color: #6b7280; font-size: 12px; margin: 0;";
-    footerText.textContent = "You'll be redirected to complete verification";
-    footer.appendChild(footerText);
-
-    container.append(icon, title, description, startLink, cancelBtn, footer);
-    overlay.appendChild(container);
+    card.append(iconWrap, title, description, infoStrip, startLink, cancelBtn, footer);
+    overlay.appendChild(card);
 
     const close = () => {
       this.closeModal();
