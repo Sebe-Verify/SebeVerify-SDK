@@ -319,6 +319,11 @@ export function SelfieCapture() {
               setCapturedSnapshots(prev => snap ? [...prev, snap] : prev)
               setCurrentChallengeIndex(ci => {
                 const next = ci + 1
+                // Haptic cue: short pulse between challenges, longer double-pulse on the final
+                // pass so the user feels "done!" distinctly from "next up".
+                if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+                  navigator.vibrate(next < challenges.length ? 80 : [60, 60, 120])
+                }
                 if (next < challenges.length) setTimeout(() => { cooldownRef.current = false }, 2500)
                 return next
               })

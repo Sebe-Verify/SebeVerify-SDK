@@ -51,6 +51,8 @@ export function CameraCapture({
   const [facingMode, setFacingMode] = useState<"user" | "environment">(
     overlayType === "selfie" ? "user" : "environment"
   )
+  const [torchSupported, setTorchSupported] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
 
   const detectionEnabled = overlayType === "document" && !capturedImage && isReady
   const { isDocumentDetected, lightingIssue } = useDocumentDetection({
@@ -65,7 +67,23 @@ export function CameraCapture({
     killGlobalStream()
     setStream(null)
     setIsReady(false)
+    setTorchSupported(false)
+    setTorchOn(false)
   }, [videoRef])
+
+  const toggleTorch = useCallback(async () => {
+    if (!stream) return
+    const [track] = stream.getVideoTracks()
+    if (!track) return
+    const next = !torchOn
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] })
+      setTorchOn(next)
+    } catch {
+      // Torch not actually controllable on this device — disable the button so we don't try again
+      setTorchSupported(false)
+    }
+  }, [stream, torchOn])
 
   const isRequestingRef = useRef(false)
 
@@ -148,6 +166,15 @@ export function CameraCapture({
       videoRef.current.onplay = () => setIsReady(true)
       videoRef.current.play().catch(() => {})
     }
+    if (!stream) return
+    const [track] = stream.getVideoTracks()
+    // Torch is Chromium-only and only on the rear/environment camera. getCapabilities()
+    // may not exist on older browsers, hence the optional chain + cast.
+    const caps = (track && "getCapabilities" in track ? track.getCapabilities() : undefined) as
+      | (MediaTrackCapabilities & { torch?: boolean })
+      | undefined
+    setTorchSupported(!!caps?.torch)
+    setTorchOn(false)
   }, [stream])
 
   const captureImage = useCallback(() => {
@@ -348,13 +375,23 @@ export function CameraCapture({
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              {/* Flash placeholder */}
+              {/* Flash / torch — only enabled when the active track exposes the torch capability */}
               <button
                 type="button"
-                className="w-12 h-12 rounded-2xl border border-(--sv-hairline) bg-(--sv-card) flex items-center justify-center text-(--sv-ink-3) touch-manipulation"
-                aria-label="Flash"
+                onClick={() => void toggleTorch()}
+                disabled={!torchSupported}
+                className={cn(
+                  "w-12 h-12 rounded-2xl border flex items-center justify-center touch-manipulation transition-colors",
+                  torchOn
+                    ? "border-(--sv-brand) bg-(--sv-brand) text-white"
+                    : torchSupported
+                    ? "border-(--sv-hairline) bg-(--sv-card) text-(--sv-ink)"
+                    : "border-(--sv-hairline) bg-(--sv-card) text-(--sv-ink-4) opacity-50 cursor-not-allowed"
+                )}
+                aria-label={torchOn ? "Turn off flash" : "Turn on flash"}
+                aria-pressed={torchOn}
               >
-                <Zap size={18} />
+                <Zap size={18} fill={torchOn ? "currentColor" : "none"} />
               </button>
 
               {/* Center status pill / tap to capture */}
