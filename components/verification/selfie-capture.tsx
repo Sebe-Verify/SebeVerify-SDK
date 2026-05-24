@@ -241,7 +241,7 @@ export function SelfieCapture() {
         const faceWidth = faceRight - faceLeft
         const cx = 0.5, cy = 0.5, r = 0.425
 
-        const centered = Math.abs(faceCenterX - cx) < 0.18 && Math.abs(faceCenterY - cy) < 0.20
+        const centered = Math.abs(faceCenterX - cx) < 0.25 && Math.abs(faceCenterY - cy) < 0.28
         const goodSize = faceWidth > 0.22 && faceWidth < 0.38
         const fullyIn = faceLeft > (cx - r) && faceRight < (cx + r) && faceTop > (cy - r) && faceBottom < (cy + r)
         const aligned = centered && goodSize && fullyIn
@@ -319,6 +319,11 @@ export function SelfieCapture() {
               setCapturedSnapshots(prev => snap ? [...prev, snap] : prev)
               setCurrentChallengeIndex(ci => {
                 const next = ci + 1
+                // Haptic cue: short pulse between challenges, longer double-pulse on the final
+                // pass so the user feels "done!" distinctly from "next up".
+                if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+                  navigator.vibrate(next < challenges.length ? 80 : [60, 60, 120])
+                }
                 if (next < challenges.length) setTimeout(() => { cooldownRef.current = false }, 2500)
                 return next
               })
