@@ -53,7 +53,7 @@ export function CameraCapture({
   )
 
   const detectionEnabled = overlayType === "document" && !capturedImage && isReady
-  const { isDocumentDetected } = useDocumentDetection({
+  const { isDocumentDetected, lightingIssue } = useDocumentDetection({
     videoRef,
     containerRef: videoContainerRef,
     enabled: detectionEnabled,
@@ -301,6 +301,8 @@ export function CameraCapture({
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-300",
                       isDocumentDetected
                         ? "bg-(--sv-success) text-white"
+                        : lightingIssue === "too_dark"
+                        ? "bg-(--sv-warning) text-white"
                         : "bg-black/50 text-white/80 backdrop-blur-sm"
                     )}>
                       {isDocumentDetected && (
@@ -308,7 +310,11 @@ export function CameraCapture({
                           <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       )}
-                      {isDocumentDetected ? "Document detected" : "Position document in frame"}
+                      {isDocumentDetected
+                        ? "Document detected"
+                        : lightingIssue === "too_dark"
+                        ? "Move to a brighter area"
+                        : "Position document in frame"}
                     </div>
                   </div>
                 </div>
