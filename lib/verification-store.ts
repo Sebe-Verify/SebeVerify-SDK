@@ -283,35 +283,8 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         };
         set({ requestId });
 
-        // 3. Poll until the backend finishes processing (max 60 s)
-        const maxAttempts = 30;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-          // Stop polling if the submission was cancelled (e.g. user navigated away)
-          if (signal.aborted) break;
-          try {
-            const statusRes = await fetch(
-              `${backendUrl}/projects/${projectId}/verifications/${requestId}/status`,
-              { headers: { "X-API-Key": apiKey }, signal },
-            );
-            if (statusRes.ok) {
-              const statusData = (await statusRes.json()) as { result_ready: boolean };
-              if (statusData.result_ready) break;
-            } else if (statusRes.status >= 400 && statusRes.status < 500) {
-              // 4xx is permanent — bad key, unknown request_id, etc. No point retrying.
-              const body = await statusRes.text();
-              throw new Error(`status poll ${statusRes.status}: ${body}`);
-            }
-            // 5xx and network blips fall through to the next attempt
-          } catch (pollErr) {
-            if ((pollErr as Error).name === "AbortError") break;
-            // Re-throw 4xx so the user sees the real error instead of waiting 60s
-            if (pollErr instanceof Error && pollErr.message.startsWith("status poll ")) {
-              throw pollErr;
-            }
-            // transient network error — keep polling
-          }
-        }
+        // Images accepted — the backend processes and runs verification asynchronously.
+        // The result is delivered to the merchant via webhook; no polling needed here.
       } else {
         // Mock mode — local dev only
         try {
@@ -340,7 +313,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         }
       }
 
-      // Brief pause for mock mode; project mode already waited during polling
+      // Brief pause for mock mode so the submitting spinner is visible
       if (!hasProjectMode) {
         await new Promise<void>((resolve) =>
           setTimeout(resolve, state.sessionId ? 400 : 2000),
