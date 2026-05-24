@@ -232,7 +232,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         );
         if (!sessionRes.ok) {
           const body = await sessionRes.text();
-          throw new Error(`session/start ${sessionRes.status}: ${body}`);
+          throw new Error(extractApiError(body, sessionRes.status, "Unable to start verification session"));
         }
         const { session_id: backendSessionId } = (await sessionRes.json()) as {
           session_id: string;
@@ -276,7 +276,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
         }
         if (!submitRes.ok) {
           const body = await submitRes.text();
-          throw new Error(`verification/image ${submitRes.status}: ${body}`);
+          throw new Error(extractApiError(body, submitRes.status, "Unable to upload verification images"));
         }
         const { request_id: requestId } = (await submitRes.json()) as {
           request_id: string;
@@ -454,6 +454,22 @@ function buildFormData(
   });
 
   return formData;
+}
+
+function extractApiError(body: string, status: number, fallback: string): string {
+  const trimmed = body.trim();
+  // HTML error pages (nginx, Next.js, etc.) — never show raw HTML to users
+  if (trimmed.startsWith("<")) return `${fallback} (${status})`;
+  try {
+    const json = JSON.parse(trimmed);
+    const detail = json?.detail ?? json?.message ?? json?.error;
+    if (typeof detail === "string" && detail.length > 0) return detail;
+    if (typeof detail === "object") return JSON.stringify(detail);
+  } catch {
+    // plain text
+  }
+  if (trimmed.length > 0 && trimmed.length < 200) return trimmed;
+  return `${fallback} (${status})`;
 }
 
 function dataURLtoBlob(dataURL: string): Blob {
