@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
+import { toGrayscale, laplacianVariance, meanBrightness, type Region } from "@/lib/image-quality"
 
 interface UseDocumentDetectionOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>
@@ -13,6 +14,13 @@ const ANALYSIS_LONG_EDGE = 320
 const TARGET_FPS = 8
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS
 const STABILITY_MS = 600   // must hold detected for this long before confirming
+const DARK_HOLD_MS = 700   // must be dark for this long before we surface the hint
+
+const BRIGHTNESS_MIN = 55
+const SHARPNESS_MIN = 40
+const EDGE_THRESH = 35
+const EDGE_PRESENT_FRACTION = 0.025
+const EDGE_STRONG_FRACTION = 0.06
 
 /**
  * Compute the source-video crop rectangle that `object-cover` produces.
@@ -29,17 +37,10 @@ function objectCoverCrop(srcW: number, srcH: number, dstW: number, dstH: number)
   }
 }
 
-/**
- * Convert RGBA pixel array to grayscale Float32Array.
- */
-function toGrayscale(pixels: Uint8ClampedArray, w: number, h: number): Float32Array {
-  const gray = new Float32Array(w * h)
-  for (let i = 0; i < w * h; i++) {
-    gray[i] = pixels[i * 4] * 0.299 + pixels[i * 4 + 1] * 0.587 + pixels[i * 4 + 2] * 0.114
-  }
-  return gray
+interface CheckResult {
+  detected: boolean
+  brightnessOk: boolean
 }
-
 
 /**
  * Check whether a document is present in the guide rectangle.
@@ -54,7 +55,7 @@ function toGrayscale(pixels: Uint8ClampedArray, w: number, h: number): Float32Ar
  *    Uses a simple Sobel on just the border bands — fast and targeted.
  *
  * 3. INTERIOR BRIGHTNESS — The inner 70% of the guide must be reasonably bright
- *    (mean luminance > 60/255). This rejects a phone held in a dark pocket, etc.
+ *    (mean luminance > 55/255). This rejects a phone held in a dark pocket, etc.
  *    It does NOT require the interior to be uniform, so printed text/photos on the
  *    card still pass.
  *
@@ -74,8 +75,8 @@ function checkDocument(
   pixels: Uint8ClampedArray,
   w: number,
   h: number,
-  aspectRatio: number
-): boolean {
+  aspectRatio: number,
+): CheckResult {
   const gray = toGrayscale(pixels, w, h)
 
   // ── Guide rect (matches on-screen 85% overlay) ──────────────────────────────
@@ -87,32 +88,16 @@ function checkDocument(
   const gx = Math.round((w - gw) / 2)
   const gy = Math.round((h - gh) / 2)
 
-  // ── 1. Sharpness (Laplacian variance over guide interior) ───────────────────
-  // Compute over inner 80% to avoid card-edge gradients inflating the score.
-  const ix1 = gx + Math.round(gw * 0.10)
-  const ix2 = gx + Math.round(gw * 0.90)
-  const iy1 = gy + Math.round(gh * 0.10)
-  const iy2 = gy + Math.round(gh * 0.90)
-
-  let lapSum = 0, lapSumSq = 0, lapCount = 0
-  for (let py = iy1 + 1; py < iy2 - 1; py++) {
-    for (let px = ix1 + 1; px < ix2 - 1; px++) {
-      const lap =
-        -gray[(py - 1) * w + px] +
-        -gray[py * w + (px - 1)] +
-        4 * gray[py * w + px] +
-        -gray[py * w + (px + 1)] +
-        -gray[(py + 1) * w + px]
-      lapSum += lap
-      lapSumSq += lap * lap
-      lapCount++
-    }
+  // ── 1. Sharpness (Laplacian variance over inner 80% of guide) ───────────────
+  // Inner 80% avoids the card edges inflating the variance.
+  const sharpRegion: Region = {
+    x: gx + Math.round(gw * 0.10),
+    y: gy + Math.round(gh * 0.10),
+    w: Math.round(gw * 0.80),
+    h: Math.round(gh * 0.80),
   }
-  const lapMean = lapSum / lapCount
-  const sharpness = lapCount > 0 ? lapSumSq / lapCount - lapMean * lapMean : 0
-  // A real in-focus document needs at least ~40 variance.
-  // Very blurry scenes or featureless objects score < 10.
-  const sharpnessOk = sharpness > 40
+  const sharpness = laplacianVariance(gray, w, h, sharpRegion)
+  const sharpnessOk = sharpness > SHARPNESS_MIN
 
   // ── 2. Edge frame (Sobel on the four border bands) ──────────────────────────
   const bandV = Math.max(4, Math.round(gh * 0.10))
@@ -120,11 +105,9 @@ function checkDocument(
 
   let topStrong = 0, bottomStrong = 0, leftStrong = 0, rightStrong = 0
   let topN = 0, bottomN = 0, leftN = 0, rightN = 0
-  const edgeThresh = 35
 
   for (let py = gy; py < gy + gh; py++) {
     for (let px = gx; px < gx + gw; px++) {
-      // Simple 3×3 Sobel — only computed at interior pixels (skip outermost row/col)
       if (px < 1 || py < 1 || px >= w - 1 || py >= h - 1) continue
 
       const dT = py - gy
@@ -143,7 +126,7 @@ function checkDocument(
         -gray[(py - 1) * w + (px - 1)] - 2 * gray[(py - 1) * w + px] - gray[(py - 1) * w + (px + 1)] +
         gray[(py + 1) * w + (px - 1)] + 2 * gray[(py + 1) * w + px] + gray[(py + 1) * w + (px + 1)]
       const mag = Math.sqrt(gxS * gxS + gyS * gyS)
-      const strong = mag > edgeThresh
+      const strong = mag > EDGE_THRESH
 
       if (dT < bandV) { topN++;    if (strong) topStrong++ }
       if (dB < bandV) { bottomN++; if (strong) bottomStrong++ }
@@ -157,29 +140,26 @@ function checkDocument(
   const leftD   = leftN   > 0 ? leftStrong   / leftN   : 0
   const rightD  = rightN  > 0 ? rightStrong  / rightN  : 0
 
-  // All four sides must have at least minimal edge activity (card is in frame),
-  // and at least 2 sides must be strongly edged (>= 0.06).
-  const allFourPresent = topD > 0.025 && bottomD > 0.025 && leftD > 0.025 && rightD > 0.025
-  const strongSides = [topD, bottomD, leftD, rightD].filter(d => d > 0.06).length
+  const allFourPresent =
+    topD > EDGE_PRESENT_FRACTION && bottomD > EDGE_PRESENT_FRACTION &&
+    leftD > EDGE_PRESENT_FRACTION && rightD > EDGE_PRESENT_FRACTION
+  const strongSides = [topD, bottomD, leftD, rightD].filter(d => d > EDGE_STRONG_FRACTION).length
   const edgesOk = allFourPresent && strongSides >= 2
 
-  // ── 3. Interior brightness ───────────────────────────────────────────────────
-  let brightnessSum = 0, brightnessCount = 0
-  const bx1 = gx + Math.round(gw * 0.15)
-  const bx2 = gx + Math.round(gw * 0.85)
-  const by1 = gy + Math.round(gh * 0.15)
-  const by2 = gy + Math.round(gh * 0.85)
-  for (let py = by1; py < by2; py++) {
-    for (let px = bx1; px < bx2; px++) {
-      brightnessSum += gray[py * w + px]
-      brightnessCount++
-    }
+  // ── 3. Interior brightness (inner 70% of guide) ─────────────────────────────
+  const brightRegion: Region = {
+    x: gx + Math.round(gw * 0.15),
+    y: gy + Math.round(gh * 0.15),
+    w: Math.round(gw * 0.70),
+    h: Math.round(gh * 0.70),
   }
-  const meanBrightness = brightnessCount > 0 ? brightnessSum / brightnessCount : 0
-  // Must be at least moderately lit — rejects camera pointed at dark surface
-  const brightnessOk = meanBrightness > 55
+  const brightness = meanBrightness(gray, w, h, brightRegion)
+  const brightnessOk = brightness > BRIGHTNESS_MIN
 
-  return sharpnessOk && edgesOk && brightnessOk
+  return {
+    detected: sharpnessOk && edgesOk && brightnessOk,
+    brightnessOk,
+  }
 }
 
 export function useDocumentDetection({
@@ -189,11 +169,14 @@ export function useDocumentDetection({
   aspectRatio = 1.6,
 }: UseDocumentDetectionOptions) {
   const [isDocumentDetected, setIsDocumentDetected] = useState(false)
+  const [lightingIssue, setLightingIssue] = useState<"too_dark" | null>(null)
   const offscreenRef = useRef<HTMLCanvasElement | null>(null)
   const rafRef = useRef<number | null>(null)
   const lastFrameTimeRef = useRef(0)
   const detectedSinceRef = useRef<number | null>(null)
   const stableDetectedRef = useRef(false)
+  const darkSinceRef = useRef<number | null>(null)
+  const lightingIssueRef = useRef<"too_dark" | null>(null)
 
   const getOffscreen = useCallback(() => {
     if (!offscreenRef.current) {
@@ -207,7 +190,10 @@ export function useDocumentDetection({
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       detectedSinceRef.current = null
       stableDetectedRef.current = false
+      darkSinceRef.current = null
+      lightingIssueRef.current = null
       setIsDocumentDetected(false)
+      setLightingIssue(null)
       return
     }
 
@@ -247,9 +233,9 @@ export function useDocumentDetection({
             if (ctx) {
               ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, analysisW, analysisH)
               const imageData = ctx.getImageData(0, 0, analysisW, analysisH)
-              const detected = checkDocument(imageData.data, analysisW, analysisH, aspectRatio)
+              const result = checkDocument(imageData.data, analysisW, analysisH, aspectRatio)
 
-              if (detected) {
+              if (result.detected) {
                 if (detectedSinceRef.current === null) {
                   detectedSinceRef.current = timestamp
                 }
@@ -262,6 +248,22 @@ export function useDocumentDetection({
                 if (stableDetectedRef.current) {
                   stableDetectedRef.current = false
                   setIsDocumentDetected(false)
+                }
+              }
+
+              // Lighting hint — debounced so a transient dark frame doesn't flicker the UI.
+              // Suppressed once the document is confirmed (the green pill already tells the user it's working).
+              if (!result.brightnessOk && !stableDetectedRef.current) {
+                if (darkSinceRef.current === null) darkSinceRef.current = timestamp
+                if (timestamp - darkSinceRef.current >= DARK_HOLD_MS && lightingIssueRef.current !== "too_dark") {
+                  lightingIssueRef.current = "too_dark"
+                  setLightingIssue("too_dark")
+                }
+              } else {
+                darkSinceRef.current = null
+                if (lightingIssueRef.current !== null) {
+                  lightingIssueRef.current = null
+                  setLightingIssue(null)
                 }
               }
             }
@@ -282,5 +284,5 @@ export function useDocumentDetection({
     }
   }, [enabled, videoRef, containerRef, aspectRatio, getOffscreen])
 
-  return { isDocumentDetected }
+  return { isDocumentDetected, lightingIssue }
 }

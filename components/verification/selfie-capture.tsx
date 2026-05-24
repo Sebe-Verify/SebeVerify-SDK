@@ -4,11 +4,28 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { Category } from "@mediapipe/tasks-vision"
 import { useVerificationStore } from "@/lib/verification-store"
 import { useLiveness } from "./liveness-context"
+import { toGrayscale, laplacianVariance, meanBrightness } from "@/lib/image-quality"
 import { ArrowRight, Loader2, CheckCircle2, SmilePlus, Eye, ArrowLeft, ArrowRight as ArrowRightIcon, Camera } from "lucide-react"
 
 // Baseline-capture timings — kept here so the analyze loop and the UI agree
 const BASELINE_HOLD_MS = 800        // how long the face must stay centered before snap
 const BASELINE_CONFIRM_MS = 700     // how long "Got it!" stays on screen before challenges start
+
+// Image-quality check
+// Sampled at QUALITY_INTERVAL_MS over the central QUALITY_FACE_FRAC of the camera square,
+// which is where the face sits once aligned. Quality must hold for QUALITY_HOLD_MS before
+// we surface the hint, otherwise a single transient frame would flicker the UI.
+const QUALITY_INTERVAL_MS = 250
+const QUALITY_HOLD_MS = 500
+const QUALITY_CANVAS_SIZE = 192
+const QUALITY_FACE_FRAC = 0.6
+// Faces carry less high-frequency detail than printed documents, so the Laplacian
+// floor is much lower than the document detector's (40).
+const QUALITY_SHARPNESS_MIN = 15
+const QUALITY_BRIGHTNESS_MIN = 60
+const QUALITY_BRIGHTNESS_MAX = 225
+
+type ImageQuality = "ok" | "too_dark" | "too_bright" | "too_blurry"
 
 type ChallengeType = "smile" | "blink" | "turn_head_left" | "turn_head_right"
 const ALL_CHALLENGES: ChallengeType[] = ["smile", "blink", "turn_head_left", "turn_head_right"]
@@ -50,6 +67,13 @@ export function SelfieCapture() {
   const [faceStatus, setFaceStatus] = useState<"none" | "too_far" | "too_close" | "off_center" | "aligned">("none")
   const faceAlignedRef = useRef(false)
   const streamRef = useRef<MediaStream | null>(null)
+
+  const [imageQuality, setImageQuality] = useState<ImageQuality>("ok")
+  const imageQualityRef = useRef<ImageQuality>("ok")
+  const qualityCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const lastQualityCheckRef = useRef(0)
+  const qualityCandidateRef = useRef<ImageQuality>("ok")
+  const qualityCandidateSinceRef = useRef<number>(0)
 
   // Start the front camera on mount, stop on unmount
   useEffect(() => {
@@ -123,6 +147,62 @@ export function SelfieCapture() {
     return canvas.toDataURL("image/jpeg", quality)
   }, [])
 
+  const checkImageQuality = useCallback(() => {
+    const video = videoRef.current
+    if (!video || video.readyState < 2 || video.videoWidth === 0) return
+
+    if (!qualityCanvasRef.current) {
+      const c = document.createElement("canvas")
+      c.width = QUALITY_CANVAS_SIZE
+      c.height = QUALITY_CANVAS_SIZE
+      qualityCanvasRef.current = c
+    }
+    const canvas = qualityCanvasRef.current
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })
+    if (!ctx) return
+
+    // Draw the same square center crop the user sees in the circle.
+    const vw = video.videoWidth, vh = video.videoHeight
+    const side = Math.min(vw, vh)
+    const sx = (vw - side) / 2
+    const sy = (vh - side) / 2
+    try {
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, QUALITY_CANVAS_SIZE, QUALITY_CANVAS_SIZE)
+    } catch {
+      return
+    }
+    const pixels = ctx.getImageData(0, 0, QUALITY_CANVAS_SIZE, QUALITY_CANVAS_SIZE).data
+    const gray = toGrayscale(pixels, QUALITY_CANVAS_SIZE, QUALITY_CANVAS_SIZE)
+
+    const margin = Math.round(QUALITY_CANVAS_SIZE * (1 - QUALITY_FACE_FRAC) / 2)
+    const region = {
+      x: margin,
+      y: margin,
+      w: QUALITY_CANVAS_SIZE - margin * 2,
+      h: QUALITY_CANVAS_SIZE - margin * 2,
+    }
+    const brightness = meanBrightness(gray, QUALITY_CANVAS_SIZE, QUALITY_CANVAS_SIZE, region)
+    const sharpness = laplacianVariance(gray, QUALITY_CANVAS_SIZE, QUALITY_CANVAS_SIZE, region)
+
+    let next: ImageQuality = "ok"
+    if (brightness < QUALITY_BRIGHTNESS_MIN) next = "too_dark"
+    else if (brightness > QUALITY_BRIGHTNESS_MAX) next = "too_bright"
+    else if (sharpness < QUALITY_SHARPNESS_MIN) next = "too_blurry"
+
+    const now = performance.now()
+    if (next !== qualityCandidateRef.current) {
+      qualityCandidateRef.current = next
+      qualityCandidateSinceRef.current = now
+    }
+    // Promote candidate → committed only after it's been stable for QUALITY_HOLD_MS,
+    // except "ok" recovers instantly so the user isn't stuck behind a stale warning.
+    const shouldCommit = next === "ok" || now - qualityCandidateSinceRef.current >= QUALITY_HOLD_MS
+    if (shouldCommit && next !== imageQualityRef.current) {
+      imageQualityRef.current = next
+      setImageQuality(next)
+    }
+  }, [])
+
   const lastVideoTimeRef = useRef<number>(-1)
   const analyzeRef = useRef<() => void>(() => {})
   const holdStartTimeRef = useRef<number>(0)
@@ -132,7 +212,14 @@ export function SelfieCapture() {
     const video = videoRef.current
     if (video.currentTime !== lastVideoTimeRef.current && video.readyState >= 2) {
       lastVideoTimeRef.current = video.currentTime
-      const results = landmarker.detectForVideo(video, performance.now())
+
+      const tNow = performance.now()
+      if (tNow - lastQualityCheckRef.current >= QUALITY_INTERVAL_MS) {
+        lastQualityCheckRef.current = tNow
+        checkImageQuality()
+      }
+
+      const results = landmarker.detectForVideo(video, tNow)
 
       const landmarks = results.faceLandmarks?.[0]
       if (landmarks && landmarks.length > 263) {
@@ -178,8 +265,11 @@ export function SelfieCapture() {
         baselineHoldStartRef.current = 0
       } else if (!baselineImageRef.current) {
         // Phase 1 — capture a neutral, centered baseline before any challenge expression distorts the face.
-        // This image is what the backend uses for face matching against the ID.
-        if (baselineHoldStartRef.current === 0) {
+        // This image is what the backend uses for face matching against the ID, so refuse to capture if
+        // the frame is blurry or badly lit — a bad baseline causes a downstream face-match failure.
+        if (imageQualityRef.current !== "ok") {
+          baselineHoldStartRef.current = 0
+        } else if (baselineHoldStartRef.current === 0) {
           baselineHoldStartRef.current = performance.now()
         } else if (performance.now() - baselineHoldStartRef.current >= BASELINE_HOLD_MS) {
           const snap = captureSnapshot(true)
@@ -254,6 +344,15 @@ export function SelfieCapture() {
 
   const baselineCaptured = !!baselineImage
 
+  // While we're trying to capture the baseline, quality issues override the generic
+  // "Hold still" prompt — the user needs to know *why* we're not snapping yet.
+  const showQualityHint = faceAligned && !baselineCaptured && imageQuality !== "ok"
+  const qualityHintText =
+    imageQuality === "too_dark"   ? "Move to a brighter area"
+    : imageQuality === "too_bright" ? "Reduce direct light on your face"
+    : imageQuality === "too_blurry" ? "Hold the camera steady"
+    : ""
+
   // Hint pill text
   const hintText = (): string => {
     if (isInitializing) return "Loading face detection…"
@@ -266,7 +365,7 @@ export function SelfieCapture() {
       return "Look at the camera"
     }
     if (baselineJustCaptured) return "Got it — starting checks…"
-    if (!baselineCaptured) return "Hold still…"
+    if (!baselineCaptured) return showQualityHint ? qualityHintText : "Hold still…"
     if (currentChallenge) return CHALLENGE_LABELS[currentChallenge]
     return "Hold still…"
   }
@@ -276,6 +375,8 @@ export function SelfieCapture() {
     ? "All done!"
     : baselineJustCaptured
     ? "Got it!"
+    : showQualityHint
+    ? qualityHintText
     : faceAligned && !baselineCaptured
     ? "Hold still…"
     : faceAligned && currentChallenge
