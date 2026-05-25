@@ -226,6 +226,7 @@ export const useVerificationStore = create<VerificationState>((set, get) => ({
             body: JSON.stringify({
               document_type: backendDocType,
               document_id: docId,
+              ...(sid ? { session_id: sid } : {}),
             }),
             signal,
           },

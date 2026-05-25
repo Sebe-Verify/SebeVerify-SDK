@@ -12,6 +12,14 @@ export interface SebeVerifyConfig {
   redirectUrl: string;
   /** Override the SebeVerify-hosted web app URL (only needed for self-host / dev / staging) */
   webAppUrl?: string;
+  /**
+   * Absolute URL the SDK will POST `{ sessionId }` to before opening the
+   * verification flow. Use this to register the session on your backend so
+   * webhooks can be linked back to the current user. The request includes
+   * browser cookies (credentials: "include"), so any session-cookie auth on
+   * your endpoint works automatically.
+   */
+  registerSessionUrl?: string;
 }
 
 export interface SebeVerifyResult {
@@ -290,6 +298,21 @@ class SebeVerifySDK {
 
       const sessionId = generateUuid();
       this.sessionId = sessionId;
+
+      if (this.config.registerSessionUrl) {
+        const res = await fetch(this.config.registerSessionUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ sessionId }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(
+            body.error ?? `Session registration failed (${res.status})`,
+          );
+        }
+      }
 
       const verificationUrl = this.buildVerificationUrl(sessionId);
 
