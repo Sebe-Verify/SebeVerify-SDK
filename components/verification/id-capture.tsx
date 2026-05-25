@@ -40,7 +40,7 @@ export function IdFrontCapture() {
       onRetake={handleRetake}
       capturedImage={capturedImage}
       overlayType="document"
-      documentAspectRatio={documentType === 'passport' ? 0.704 : 1.6}
+      documentAspectRatio={documentType === 'passport' ? 1.42 : 1.6}
     />
   )
 }
