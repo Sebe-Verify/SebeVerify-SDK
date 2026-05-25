@@ -286,8 +286,11 @@ export function CameraCapture({
       <div className="flex flex-1 flex-col items-center justify-center px-4">
         <div
           ref={videoContainerRef}
-          className="relative w-full overflow-hidden rounded-2xl bg-black"
-          style={{ aspectRatio: documentAspectRatio >= 1 ? "4/3" : "3/4", maxHeight: "62svh" }}
+          className="relative overflow-hidden rounded-2xl bg-black"
+          style={{
+            aspectRatio: documentAspectRatio,
+            width: `min(100%, calc(48svh * ${documentAspectRatio}))`,
+          }}
         >
           {capturedImage ? (
             <img src={capturedImage} alt="Captured" className="absolute inset-0 h-full w-full object-contain" />
