@@ -9,6 +9,14 @@ export interface SebeVerifyConfig {
     redirectUrl: string;
     /** Override the SebeVerify-hosted web app URL (only needed for self-host / dev / staging) */
     webAppUrl?: string;
+    /**
+     * Absolute URL the SDK will POST `{ sessionId }` to before opening the
+     * verification flow. Use this to register the session on your backend so
+     * webhooks can be linked back to the current user. The request includes
+     * browser cookies (credentials: "include"), so any session-cookie auth on
+     * your endpoint works automatically.
+     */
+    registerSessionUrl?: string;
 }
 export interface SebeVerifyResult {
     sessionId: string;
