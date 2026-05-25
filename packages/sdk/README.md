@@ -32,18 +32,21 @@ import SebeVerify from 'sebeverify-sdk';
 const verifier = SebeVerify({
   // Your public API Key generated from the SebeVerify Dashboard
   apiKey: "svk_12345.abcdefg",
-  
+
   // Your Project ID
   projectId: "your-project-uuid",
-  
-  // The backend API routing URL
-  backendUrl: "https://api.yourdomain.com",
-  
-  // The Vercel-hosted URL of your SebeVerify UI
-  webAppUrl: "https://verify.yourdomain.com",
-  
+
   // Where to redirect the user after a successful verification
   redirectUrl: "https://yourdomain.com/dashboard",
+
+  // (Optional) Override the hosted verification UI — only needed for self-hosting or dev
+  webAppUrl: "https://verify.yourdomain.com",
+
+  // (Optional) Your backend endpoint that receives { sessionId } before the
+  // flow opens. Use this so your server can link incoming webhooks back to
+  // the current user. The request is sent with credentials: "include", so
+  // any session-cookie auth on your endpoint works automatically.
+  registerSessionUrl: "https://yourdomain.com/api/sessions/register",
 });
 
 // 2. Trigger the modal
