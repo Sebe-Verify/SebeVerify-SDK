@@ -328,7 +328,7 @@ export function CameraCapture({
                   {/* Status pill */}
                   <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
                     <div className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-300",
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-300 whitespace-nowrap",
                       isDocumentDetected
                         ? "bg-(--sv-success) text-white"
                         : lightingIssue === "too_dark"
