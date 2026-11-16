@@ -4,6 +4,10 @@ import { useState } from "react"
 import { CameraCapture } from "./camera-capture"
 import { useVerificationStore } from "@/lib/verification-store"
 
+// Guide frame width / height. Passport data page: ID-3, 125 x 88 mm, landscape.
+const PASSPORT_ASPECT = 125 / 88
+const ID_CARD_ASPECT = 1.6
+
 export function IdFrontCapture() {
   const { documentType, setFrontImage, setStep } = useVerificationStore()
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
@@ -40,7 +44,7 @@ export function IdFrontCapture() {
       onRetake={handleRetake}
       capturedImage={capturedImage}
       overlayType="document"
-      documentAspectRatio={documentType === 'passport' ? 0.704 : 1.6}
+      documentAspectRatio={documentType === 'passport' ? PASSPORT_ASPECT : ID_CARD_ASPECT}
     />
   )
 }
